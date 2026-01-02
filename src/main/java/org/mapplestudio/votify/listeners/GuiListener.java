@@ -38,7 +38,7 @@ public class GuiListener implements Listener {
             e.setCancelled(true);
             if (clickedItem.getType() == Material.EMERALD && clickedItem.getItemMeta().getDisplayName().contains("Add New Service")) {
                 player.closeInventory();
-                player.sendMessage(ChatColor.GREEN + "Please type the new service name in chat (e.g., 'my-vote-site.com'). Type 'cancel' to abort.");
+                sendInputInstruction(player, "Enter the new service name (e.g., 'minecraft-server.net').");
                 playerInputMode.put(player.getUniqueId(), "add_service");
             } else if (clickedItem.getType() == Material.PAPER) {
                 String serviceName = ChatColor.stripColor(clickedItem.getItemMeta().getDisplayName());
@@ -55,18 +55,31 @@ public class GuiListener implements Listener {
                 mainGui.openInventory(player);
             } else if (clickedItem.getType() == Material.EMERALD) { // Add New Reward
                 player.closeInventory();
-                player.sendMessage(ChatColor.GREEN + "Enter the new reward in chat (e.g., 'command:eco give %player% 100'). Type 'cancel' to abort.");
+                sendInputInstruction(player, "Enter the new reward command/message.\nExamples:\n- command: give %player% diamond 1\n- message: &aThanks for voting!\n- item: DIAMOND 1 name:&bSuper_Gem");
                 playerInputMode.put(player.getUniqueId(), "add_reward:" + serviceName);
             } else if (e.getClick() == ClickType.RIGHT) { // Delete Reward
                 List<String> rewards = plugin.getVoteRewardsConfig().getStringList("rewards." + serviceName);
-                String rewardLore = ChatColor.stripColor(clickedItem.getItemMeta().getLore().get(0));
-                rewards.removeIf(r -> r.contains(rewardLore));
-                plugin.getVoteRewardsConfig().set("rewards." + serviceName, rewards);
-                plugin.saveVoteRewardsConfig();
-                serviceEditor.initializeItems(); // Refresh GUI
-                player.sendMessage(ChatColor.GREEN + "Reward deleted.");
+                int slot = e.getSlot();
+
+                if (slot < rewards.size()) {
+                    rewards.remove(slot);
+                    plugin.getVoteRewardsConfig().set("rewards." + serviceName, rewards);
+                    plugin.saveVoteRewardsConfig();
+                    serviceEditor.initializeItems(); // Refresh GUI
+                    player.sendMessage(ChatColor.GREEN + "Reward deleted.");
+                }
             }
         }
+    }
+
+    private void sendInputInstruction(Player player, String instruction) {
+        player.sendMessage(ChatColor.DARK_GRAY + "--------------------------------------------------");
+        player.sendMessage(ChatColor.AQUA + "" + ChatColor.BOLD + "Votify Editor");
+        player.sendMessage("");
+        player.sendMessage(ChatColor.YELLOW + instruction);
+        player.sendMessage("");
+        player.sendMessage(ChatColor.GRAY + "Type 'cancel' to abort this operation.");
+        player.sendMessage(ChatColor.DARK_GRAY + "--------------------------------------------------");
     }
 
     @EventHandler

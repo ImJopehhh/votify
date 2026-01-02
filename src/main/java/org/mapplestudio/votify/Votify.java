@@ -19,6 +19,7 @@ public final class Votify extends JavaPlugin {
     private FileConfiguration voteRewardsConfig;
     private File voteRewardsFile;
     private VoteDataHandler voteDataHandler;
+    private VoteListener voteListener;
 
     @Override
     public void onEnable() {
@@ -32,7 +33,8 @@ public final class Votify extends JavaPlugin {
         this.voteDataHandler = new VoteDataHandler(this);
 
         // Listeners
-        getServer().getPluginManager().registerEvents(new VoteListener(this), this);
+        this.voteListener = new VoteListener(this);
+        getServer().getPluginManager().registerEvents(voteListener, this);
         getServer().getPluginManager().registerEvents(new GuiListener(), this);
 
         // Commands
@@ -84,6 +86,10 @@ public final class Votify extends JavaPlugin {
 
     public VoteDataHandler getVoteDataHandler() {
         return voteDataHandler;
+    }
+
+    public VoteListener getVoteListener() {
+        return voteListener;
     }
 
     public static Votify getInstance() {
