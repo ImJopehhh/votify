@@ -24,7 +24,6 @@ public final class MuVoter extends JavaPlugin {
     public void onEnable() {
         instance = this;
 
-        // Configuration
         saveDefaultConfig();
         createVoteRewardsConfig();
 
