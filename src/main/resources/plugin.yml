@@ -1,0 +1,21 @@
+name: MuVoter
+version: 1.0.0
+main: org.mapplestudio.muVoter.MuVoter
+api-version: 1.16
+author: MappleStudio
+description: A professional voter reward plugin.
+softdepend: [Votifier, PlaceholderAPI]
+
+commands:
+  muvoter:
+    description: Main command for MuVoter.
+    aliases: [muvo, mvo]
+  muvoteradmin:
+    description: Admin command for MuVoter.
+    permission: muvoter.admin
+    aliases: [muvoadmin, mvoadmin]
+
+permissions:
+  muvoter.admin:
+    description: Allows access to admin commands for MuVoter.
+    default: op

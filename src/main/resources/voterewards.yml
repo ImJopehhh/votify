@@ -1,0 +1,24 @@
+# MuVoter Vote Rewards
+#
+# You can define different rewards for different voting websites.
+# Use "default" for websites that are not listed.
+#
+# Placeholders:
+# %player% - The player's name
+#
+# Reward Types:
+# - command: Executes a command from the console.
+# - message: Sends a message to the player.
+# - item: Gives an item to the player. (Example format: "item: DIAMOND 5 name:&aSuper_Diamond lore:&bFrom_Voting")
+
+rewards:
+  default:
+    - "message: &aThanks for voting, %player%!"
+    - "command: eco give %player% 100"
+    - "item: DIAMOND 1"
+
+  # Example for a specific website
+  "minecraft-server.net":
+    - "message: &dThanks for voting on Minecraft-Server.net!"
+    - "command: give %player% golden_apple 5"
+    - "command: msg %player% You received a special reward!"

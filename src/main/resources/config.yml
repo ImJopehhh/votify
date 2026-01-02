@@ -1,0 +1,15 @@
+# MuVoter Configuration
+
+# The name of your server, used in some messages.
+server-name: "My Awesome Server"
+
+# Enable or disable debug messages in the console.
+debug: false
+
+# Messages
+messages:
+  prefix: "&8[&bMu&dVoter&8] &r"
+  vote-received: "%prefix% &aThanks, &e%player%&a, for voting on &e%service%&a!"
+  player-not-found: "%prefix% &cPlayer %player% not found."
+  no-permission: "%prefix% &cYou don't have permission to use this command."
+  reload: "%prefix% &aConfiguration reloaded successfully."
