@@ -1,20 +1,20 @@
-package org.mapplestudio.muVoter.placeholders;
+package org.mapplestudio.votify.placeholders;
 
 import me.clip.placeholderapi.expansion.PlaceholderExpansion;
 import org.bukkit.OfflinePlayer;
-import org.mapplestudio.muVoter.MuVoter;
+import org.mapplestudio.votify.Votify;
 
-public class MuVoterExpansion extends PlaceholderExpansion {
+public class VotifyExpansion extends PlaceholderExpansion {
 
-    private final MuVoter plugin;
+    private final Votify plugin;
 
-    public MuVoterExpansion(MuVoter plugin) {
+    public VotifyExpansion(Votify plugin) {
         this.plugin = plugin;
     }
 
     @Override
     public String getIdentifier() {
-        return "muvoter";
+        return "votify";
     }
 
     @Override

@@ -1,4 +1,4 @@
-# MuVoter Configuration
+# Votify Configuration
 
 # The name of your server, used in some messages.
 server-name: "My Awesome Server"
@@ -8,7 +8,7 @@ debug: false
 
 # Messages
 messages:
-  prefix: "&8[&bMu&dVoter&8] &r"
+  prefix: "&8[&bVotify&8] &r"
   vote-received: "%prefix% &aThanks, &e%player%&a, for voting on &e%service%&a!"
   player-not-found: "%prefix% &cPlayer %player% not found."
   no-permission: "%prefix% &cYou don't have permission to use this command."

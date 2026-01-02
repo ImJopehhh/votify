@@ -1,21 +1,21 @@
-package org.mapplestudio.muVoter;
+package org.mapplestudio.votify;
 
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.plugin.java.JavaPlugin;
-import org.mapplestudio.muVoter.commands.MuVoterAdminCommand;
-import org.mapplestudio.muVoter.commands.MuVoterCommand;
-import org.mapplestudio.muVoter.data.VoteDataHandler;
-import org.mapplestudio.muVoter.listeners.GuiListener;
-import org.mapplestudio.muVoter.listeners.VoteListener;
-import org.mapplestudio.muVoter.placeholders.MuVoterExpansion;
+import org.mapplestudio.votify.commands.VotifyAdminCommand;
+import org.mapplestudio.votify.commands.VotifyCommand;
+import org.mapplestudio.votify.data.VoteDataHandler;
+import org.mapplestudio.votify.listeners.GuiListener;
+import org.mapplestudio.votify.listeners.VoteListener;
+import org.mapplestudio.votify.placeholders.VotifyExpansion;
 
 import java.io.File;
 import java.io.IOException;
 
-public final class MuVoter extends JavaPlugin {
+public final class Votify extends JavaPlugin {
 
-    private static MuVoter instance;
+    private static Votify instance;
     private FileConfiguration voteRewardsConfig;
     private File voteRewardsFile;
     private VoteDataHandler voteDataHandler;
@@ -24,6 +24,7 @@ public final class MuVoter extends JavaPlugin {
     public void onEnable() {
         instance = this;
 
+        // Configuration
         saveDefaultConfig();
         createVoteRewardsConfig();
 
@@ -35,21 +36,21 @@ public final class MuVoter extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new GuiListener(), this);
 
         // Commands
-        getCommand("muvoter").setExecutor(new MuVoterCommand(this));
-        getCommand("muvoteradmin").setExecutor(new MuVoterAdminCommand(this));
+        getCommand("votify").setExecutor(new VotifyCommand(this));
+        getCommand("votifyadmin").setExecutor(new VotifyAdminCommand(this));
 
         // PlaceholderAPI
         if (getServer().getPluginManager().getPlugin("PlaceholderAPI") != null) {
-            new MuVoterExpansion(this).register();
+            new VotifyExpansion(this).register();
             getLogger().info("Successfully hooked into PlaceholderAPI!");
         }
 
-        getLogger().info("MuVoter has been enabled!");
+        getLogger().info("Votify has been enabled!");
     }
 
     @Override
     public void onDisable() {
-        getLogger().info("MuVoter has been disabled!");
+        getLogger().info("Votify has been disabled!");
     }
 
     private void createVoteRewardsConfig() {
@@ -85,7 +86,7 @@ public final class MuVoter extends JavaPlugin {
         return voteDataHandler;
     }
 
-    public static MuVoter getInstance() {
+    public static Votify getInstance() {
         return instance;
     }
 }

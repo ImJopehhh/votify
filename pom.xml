@@ -5,11 +5,11 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>org.mapplestudio</groupId>
-    <artifactId>MuVoter</artifactId>
+    <artifactId>Votify</artifactId>
     <version>1.0.0</version>
     <packaging>jar</packaging>
 
-    <name>MuVoter</name>
+    <name>Votify</name>
 
     <properties>
         <java.version>21</java.version>
@@ -74,14 +74,12 @@
             <version>1.21.1-R0.1-SNAPSHOT</version>
             <scope>provided</scope>
         </dependency>
-
         <dependency>
             <groupId>com.github.NuVotifier</groupId>
             <artifactId>NuVotifier</artifactId>
             <version>2.7.2</version>
             <scope>provided</scope>
         </dependency>
-
         <dependency>
             <groupId>me.clip</groupId>
             <artifactId>placeholderapi</artifactId>

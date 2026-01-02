@@ -1,21 +1,21 @@
-name: MuVoter
+name: Votify
 version: 1.0.0
-main: org.mapplestudio.muVoter.MuVoter
+main: org.mapplestudio.votify.Votify
 api-version: 1.16
 author: MappleStudio
 description: A professional voter reward plugin.
 softdepend: [Votifier, PlaceholderAPI]
 
 commands:
-  muvoter:
-    description: Main command for MuVoter.
-    aliases: [muvo, mvo]
-  muvoteradmin:
-    description: Admin command for MuVoter.
-    permission: muvoter.admin
-    aliases: [muvoadmin, mvoadmin]
+  votify:
+    description: Main command for Votify.
+    aliases: [vote, v]
+  votifyadmin:
+    description: Admin command for Votify.
+    permission: votify.admin
+    aliases: [vadmin, va]
 
 permissions:
-  muvoter.admin:
-    description: Allows access to admin commands for MuVoter.
+  votify.admin:
+    description: Allows access to admin commands for Votify.
     default: op
