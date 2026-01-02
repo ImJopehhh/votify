@@ -7,6 +7,7 @@ import org.mapplestudio.votify.commands.VotifyAdminCommand;
 import org.mapplestudio.votify.commands.VotifyCommand;
 import org.mapplestudio.votify.data.VoteDataHandler;
 import org.mapplestudio.votify.listeners.GuiListener;
+import org.mapplestudio.votify.listeners.JoinListener;
 import org.mapplestudio.votify.listeners.VoteListener;
 import org.mapplestudio.votify.placeholders.VotifyExpansion;
 
@@ -25,6 +26,14 @@ public final class Votify extends JavaPlugin {
     public void onEnable() {
         instance = this;
 
+        // Check for Votifier/NuVotifier
+        if (getServer().getPluginManager().getPlugin("Votifier") == null && 
+            getServer().getPluginManager().getPlugin("NuVotifier") == null) {
+            getLogger().severe("Votifier or NuVotifier not found! Votify requires one of them to function.");
+            getServer().getPluginManager().disablePlugin(this);
+            return;
+        }
+
         // Configuration
         saveDefaultConfig();
         createVoteRewardsConfig();
@@ -36,6 +45,7 @@ public final class Votify extends JavaPlugin {
         this.voteListener = new VoteListener(this);
         getServer().getPluginManager().registerEvents(voteListener, this);
         getServer().getPluginManager().registerEvents(new GuiListener(), this);
+        getServer().getPluginManager().registerEvents(new JoinListener(this), this);
 
         // Commands
         getCommand("votify").setExecutor(new VotifyCommand(this));

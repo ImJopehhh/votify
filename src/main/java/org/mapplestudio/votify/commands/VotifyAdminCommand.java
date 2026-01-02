@@ -8,7 +8,7 @@ import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.mapplestudio.votify.Votify;
-import org.mapplestudio.votify.gui.RewardEditor;
+// import org.mapplestudio.votify.gui.RewardEditor;
 
 public class VotifyAdminCommand implements CommandExecutor {
 
@@ -41,18 +41,12 @@ public class VotifyAdminCommand implements CommandExecutor {
                 String playerName = args[1];
                 String serviceName = args[2];
                 OfflinePlayer target = Bukkit.getOfflinePlayer(playerName);
-                // Updated to pass playerName as the third argument
                 plugin.getVoteListener().processVote(target, serviceName, playerName);
                 sender.sendMessage(ChatColor.GREEN + "Simulated vote for " + playerName + " from " + serviceName);
                 break;
 
             case "rewardsettings":
-                if (!(sender instanceof Player)) {
-                    sender.sendMessage("This command can only be used by players.");
-                    return true;
-                }
-                RewardEditor gui = new RewardEditor(plugin);
-                gui.openInventory((Player) sender);
+                sender.sendMessage(ChatColor.RED + "This feature is currently disabled.");
                 break;
 
             default:
@@ -67,6 +61,6 @@ public class VotifyAdminCommand implements CommandExecutor {
         String prefix = plugin.getConfig().getString("messages.prefix");
         sender.sendMessage(ChatColor.translateAlternateColorCodes('&', prefix + "&bVotify Admin Commands:"));
         sender.sendMessage(ChatColor.translateAlternateColorCodes('&', "&e/votifyadmin testvote <player> <servicename> &7- Simulate a vote."));
-        sender.sendMessage(ChatColor.translateAlternateColorCodes('&', "&e/votifyadmin rewardsettings &7- Open the reward editor GUI."));
+        // sender.sendMessage(ChatColor.translateAlternateColorCodes('&', "&e/votifyadmin rewardsettings &7- Open the reward editor GUI."));
     }
 }

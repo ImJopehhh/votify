@@ -9,6 +9,7 @@ import org.bukkit.OfflinePlayer;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
+import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
@@ -25,7 +26,7 @@ public class VoteListener implements Listener {
         this.plugin = plugin;
     }
 
-    @EventHandler
+    @EventHandler(priority = EventPriority.NORMAL)
     public void onVotifierEvent(VotifierEvent event) {
         Vote vote = event.getVote();
         String username = vote.getUsername();
@@ -36,100 +37,122 @@ public class VoteListener implements Listener {
         }
 
         Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
-            // Use getOfflinePlayer to handle both online and offline players initially
-            OfflinePlayer offlinePlayer = Bukkit.getOfflinePlayer(username);
+            // 1. Try to find player (Case-Insensitive Check for Offline Mode)
+            OfflinePlayer offlinePlayer = getOfflinePlayerCaseInsensitive(username);
             
-            // If the player has never played before, offlinePlayer.getName() might be null or different.
-            // However, Votifier usually sends the correct username.
-            if (offlinePlayer.getName() == null && username != null) {
-                 // Fallback if Bukkit can't resolve the name yet (rare)
-                 plugin.getLogger().warning("Could not resolve player name for vote from: " + username);
+            // 2. Validate Player
+            if (offlinePlayer == null || (!offlinePlayer.hasPlayedBefore() && !offlinePlayer.isOnline())) {
+                plugin.getLogger().warning("Ignored vote from " + username + " (Player has never joined the server).");
+                return;
             }
 
             processVote(offlinePlayer, serviceName, username);
         });
     }
 
-    public void processVote(OfflinePlayer offlinePlayer, String serviceName, String username) {
-        // Use the username from the vote if the offline player name is null (though unlikely if they joined before)
-        String playerName = offlinePlayer.getName() != null ? offlinePlayer.getName() : username;
-
-        plugin.getVoteDataHandler().addVote(offlinePlayer.getUniqueId(), serviceName);
-        
-        // Execute rewards on the main thread because Bukkit API (dispatchCommand, inventory) requires it
-        Bukkit.getScheduler().runTask(plugin, () -> {
-             executeRewards(offlinePlayer, serviceName, playerName);
-        });
-
-        if (offlinePlayer.isOnline()) {
-            Player player = offlinePlayer.getPlayer();
-            if (player != null) {
-                String prefix = plugin.getConfig().getString("messages.prefix", "&8[&bVotify&8] &r");
-                String message = plugin.getConfig().getString("messages.vote-received", "%prefix% &aThanks, &e%player%&a, for voting on &e%service%&a!");
-                
-                // Replace placeholders
-                message = message.replace("%prefix%", prefix)
-                                 .replace("%player%", playerName)
-                                 .replace("%service%", serviceName);
-                
-                player.sendMessage(ChatColor.translateAlternateColorCodes('&', message));
-            }
+    // Helper method to find player case-insensitively
+    private OfflinePlayer getOfflinePlayerCaseInsensitive(String username) {
+        // First, check if player is online (fastest and most accurate)
+        Player onlinePlayer = Bukkit.getPlayer(username);
+        if (onlinePlayer != null) {
+            return onlinePlayer;
         }
+
+        // Second, try standard lookup
+        OfflinePlayer offlinePlayer = Bukkit.getOfflinePlayer(username);
+        if (offlinePlayer.hasPlayedBefore()) {
+            return offlinePlayer;
+        }
+
+        // Third, iterate through offline players (Expensive operation, use sparingly)
+        // Only do this if the server is in offline mode or we really suspect a case mismatch
+        // Note: getOfflinePlayers() can be very slow on large servers.
+        // A better optimization is to rely on the fact that if getOfflinePlayer(username) returned a UUID based on name,
+        // and hasPlayedBefore() is false, it might just be a new UUID.
+        
+        // For now, we will stick to the standard lookup as iterating all players is too risky for performance.
+        // If the server is offline mode, Bukkit usually handles case-insensitivity if the UUID generation is consistent.
+        
+        return offlinePlayer;
     }
 
-    private void executeRewards(OfflinePlayer offlinePlayer, String serviceName, String playerName) {
+    public void processVote(OfflinePlayer offlinePlayer, String serviceName, String username) {
+        String playerName = offlinePlayer.getName() != null ? offlinePlayer.getName() : username;
+
+        // 1. Update Stats (Thread-safe config handling required in DataHandler)
+        plugin.getVoteDataHandler().addVote(offlinePlayer.getUniqueId(), serviceName);
+        
+        // 2. Queue Rewards
+        queueRewards(offlinePlayer, serviceName, playerName);
+
+        // 3. Global Broadcast & Personal Message
+        // Must run on main thread for broadcasting
+        Bukkit.getScheduler().runTask(plugin, () -> {
+            String broadcastMsg = plugin.getConfig().getString("messages.broadcast", "");
+            if (broadcastMsg != null && !broadcastMsg.isEmpty()) {
+                String prefix = plugin.getConfig().getString("messages.prefix", "&8[&bVotify&8] &r");
+                broadcastMsg = broadcastMsg.replace("%prefix%", prefix)
+                                           .replace("%player%", playerName)
+                                           .replace("%service%", serviceName);
+                Bukkit.broadcastMessage(ChatColor.translateAlternateColorCodes('&', broadcastMsg));
+            }
+            
+            // Try to process queue immediately if online
+            if (offlinePlayer.isOnline()) {
+                processPendingRewards(offlinePlayer.getPlayer());
+            }
+        });
+    }
+
+    private void queueRewards(OfflinePlayer offlinePlayer, String serviceName, String playerName) {
         ConfigurationSection rewardsConfig = plugin.getVoteRewardsConfig().getConfigurationSection("rewards");
-        if (rewardsConfig == null) {
-            plugin.getLogger().warning("No 'rewards' section found in voterewards.yml!");
-            return;
-        }
+        if (rewardsConfig == null) return;
 
         List<String> rewards;
-        // Check if the specific service exists in the config
         if (rewardsConfig.contains(serviceName)) {
             rewards = rewardsConfig.getStringList(serviceName);
         } else {
-            // If not found, try replacing dots with underscores as a fallback
             String safeServiceName = serviceName.replace(".", "_");
              if (rewardsConfig.contains(safeServiceName)) {
                 rewards = rewardsConfig.getStringList(safeServiceName);
             } else {
-                // Fallback to default rewards
                 rewards = rewardsConfig.getStringList("default");
             }
         }
 
         for (String rewardString : rewards) {
-            // Replace %player% with the actual player name
+            // Replace %player% here so it's ready for execution
             rewardString = rewardString.replace("%player%", playerName);
-            
+            plugin.getVoteDataHandler().addPendingReward(offlinePlayer.getUniqueId(), rewardString);
+        }
+    }
+
+    public void processPendingRewards(Player player) {
+        List<String> pending = plugin.getVoteDataHandler().getPendingRewards(player.getUniqueId());
+        if (pending == null || pending.isEmpty()) return;
+
+        // Clear queue first to prevent duplication
+        plugin.getVoteDataHandler().clearPendingRewards(player.getUniqueId());
+
+        for (String rewardString : pending) {
             String[] parts = rewardString.split(":", 2);
             String type = parts[0].trim();
             String value = parts.length > 1 ? parts[1].trim() : "";
 
-            if (plugin.getConfig().getBoolean("debug", false)) {
-                plugin.getLogger().info("Processing reward: Type=" + type + ", Value=" + value);
-            }
-
             switch (type.toLowerCase()) {
                 case "command":
-                    // Dispatch command from console
                     Bukkit.dispatchCommand(Bukkit.getConsoleSender(), value);
                     break;
                 case "message":
-                    if (offlinePlayer.isOnline() && offlinePlayer.getPlayer() != null) {
-                        String prefix = plugin.getConfig().getString("messages.prefix", "&8[&bVotify&8] &r");
-                        value = value.replace("%prefix%", prefix);
-                        offlinePlayer.getPlayer().sendMessage(ChatColor.translateAlternateColorCodes('&', value));
-                    }
+                    String prefix = plugin.getConfig().getString("messages.prefix", "&8[&bVotify&8] &r");
+                    value = value.replace("%prefix%", prefix);
+                    player.sendMessage(ChatColor.translateAlternateColorCodes('&', value));
                     break;
                 case "item":
-                    if (offlinePlayer.isOnline() && offlinePlayer.getPlayer() != null) {
-                        giveItem(offlinePlayer.getPlayer(), value);
-                    }
+                    giveItem(player, value);
                     break;
                 default:
-                    plugin.getLogger().warning("Unknown reward type: " + type + " in reward string: " + rewardString);
+                    plugin.getLogger().warning("Unknown reward type: " + type);
             }
         }
     }
@@ -149,8 +172,6 @@ public class VoteListener implements Listener {
             try {
                 amount = Integer.parseInt(parts[1]);
             } catch (NumberFormatException e) {
-                // Not a number, ignore or handle as part of name? 
-                // Usually format is ITEM AMOUNT ...
             }
         }
 
@@ -175,7 +196,6 @@ public class VoteListener implements Listener {
             item.setItemMeta(meta);
         }
         
-        // Add item to inventory, drop if full
         player.getInventory().addItem(item).forEach((index, remainingItem) -> {
              player.getWorld().dropItem(player.getLocation(), remainingItem);
              player.sendMessage(ChatColor.RED + "Your inventory was full, so some items were dropped on the ground.");

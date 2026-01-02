@@ -6,10 +6,33 @@ server-name: "My Awesome Server"
 # Enable or disable debug messages in the console.
 debug: false
 
+# Login Delay (in seconds)
+# Time to wait after a player joins before giving pending rewards.
+login-delay: 5
+
+# Discord Webhook Configuration
+discord:
+  enabled: false
+  webhook-url: "https://discord.com/api/webhooks/..."
+  top-voter-embed:
+    title: "🏆 Monthly Top Voters 🏆"
+    description: "Here are the top voters for the month of %month%!"
+    color: 16776960 # Yellow/Gold
+    footer: "Votify System"
+
+# System Data (Do not edit manually)
+data:
+  last-month: -1
+
 # Messages
 messages:
   prefix: "&8[&bVotify&8] &r"
-  vote-received: "%prefix% &aThanks, &e%player%&a, for voting on &e%service%&a!"
+  # Message sent to the player who voted (if online)
+  vote-received: "&aThanks, &e%player%&a, for voting on &e%service%&a!"
+  # Message sent to the whole server (Global Broadcast)
+  # Leave empty "" to disable.
+  broadcast: "&b%player% &7just voted on &e%service% &7and received a reward!"
+
   player-not-found: "%prefix% &cPlayer %player% not found."
   no-permission: "%prefix% &cYou don't have permission to use this command."
   reload: "%prefix% &aConfiguration reloaded successfully."
