@@ -26,6 +26,16 @@
 4. **Launch**: Restart your server to generate the configuration files.
 5. **Configure**: Edit `config.yml` to set up your rewards and Discord Webhook URL.
 
+## 🧱 Dependencies
+
+To ensure **Votify** functions correctly, please check the following requirements:
+
+### 🔴 Required (Must Install)
+* **[NuVotifier](https://www.spigotmc.org/resources/nuvotifier.13449/)**: Required to listen to vote notifications from server listing websites.
+
+### 🟢 Optional (Highly Recommended)
+* **[PlaceholderAPI](https://www.spigotmc.org/resources/placeholderapi.6245/)**: Required if you want to display Top Voter statistics on leaderboards, scoreboards, or holograms.
+
 ---
 
 ## 📊 Placeholders
@@ -34,8 +44,8 @@ Integrate Votify data into your Scoreboards, TAB, or Holograms using **Placehold
 
 | Placeholder | Description |
 | --- | --- |
-| `%votify_top_name_X%` | Displays the name of the voter at rank X |
-| `%votify_top_votes_X%` | Displays the vote count of the voter at rank X |
+| `%votify_topvoter_<month>_<number>%` | Displays the vote count of the voter at rank X |
+| `%votify_topvoter_<month>_name%` | Displays the name of the voter at rank X |
 | `%votify_player_votes%` | Displays the current player's total votes |
 
 ---
