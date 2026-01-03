@@ -12,7 +12,6 @@
 * **NuVotifier Integration**: Seamlessly listen to incoming votes from any website supported by NuVotifier.
 * **Dynamic Leaderboards**: Built-in support for Top Voter leaderboards with full **PlaceholderAPI** integration.
 * **Per-Website Rewards**: Incentivize specific voting sites by customizing unique rewards for each one.
-* **Full Message Control**: Every player-facing string is customizable, allowing you to match your server's unique branding.
 * **Monthly Automation**: Hands-free management with automated monthly resets and Top Voter logging.
 * **Discord Webhooks**: Keep your community informed with automated Top Voter announcements sent directly to your Discord server.
 
@@ -44,8 +43,8 @@ Integrate Votify data into your Scoreboards, TAB, or Holograms using **Placehold
 
 | Placeholder | Description |
 | --- | --- |
-| `%votify_topvoter_<month>_<number>%` | Displays the vote count of the voter at rank X |
-| `%votify_topvoter_<month>_name%` | Displays the name of the voter at rank X |
+| `%votify_topvoter_<month>_<number>_votes%` | Displays the vote count of the voter at rank X |
+| `%votify_topvoter_<month>_<number>_name%` | Displays the name of the voter at rank X |
 | `%votify_player_votes%` | Displays the current player's total votes |
 
 ---
