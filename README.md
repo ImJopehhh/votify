@@ -20,7 +20,7 @@
 ## 🛠 Installation
 
 1. **Prerequisites**: Ensure you have [NuVotifier](https://www.spigotmc.org/resources/nuvotifier.13449/) installed and configured on your server.
-2. **Download**: Grab the latest `.jar` from the [Releases](https://www.google.com/search?q=https://github.com/your-repo/releases) page.
+2. **Download**: Grab the latest `.jar` from the [Releases](https://github.com/ImJopehhh/votify/releases) page.
 3. **Deploy**: Place the file into your server's `/plugins/` directory.
 4. **Launch**: Restart your server to generate the configuration files.
 5. **Configure**: Edit `config.yml` to set up your rewards and Discord Webhook URL.
