@@ -45,7 +45,6 @@ Integrate Votify data into your Scoreboards, TAB, or Holograms using **Placehold
 | --- | --- |
 | `%votify_topvoter_<month>_<number>_votes%` | Displays the vote count of the voter at rank X |
 | `%votify_topvoter_<month>_<number>_name%` | Displays the name of the voter at rank X |
-| `%votify_player_votes%` | Displays the current player's total votes |
 
 ---
 
