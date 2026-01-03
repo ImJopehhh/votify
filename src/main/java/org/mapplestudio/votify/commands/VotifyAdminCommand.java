@@ -56,6 +56,12 @@ public class VotifyAdminCommand implements CommandExecutor, TabCompleter {
                 handleTopVoterCommand(sender, args[1].toLowerCase());
                 break;
 
+            case "reload":
+                plugin.reloadConfig();
+                plugin.reloadVoteRewardsConfig();
+                sender.sendMessage(ChatColor.translateAlternateColorCodes('&', plugin.getConfig().getString("messages.prefix") + " " + plugin.getConfig().getString("messages.reload")));
+                break;
+
             case "rewardsettings":
                 sender.sendMessage(ChatColor.RED + "This feature is currently disabled.");
                 break;
@@ -102,7 +108,7 @@ public class VotifyAdminCommand implements CommandExecutor, TabCompleter {
     }
 
     private void giveTopVoterRewards(CommandSender sender) {
-        sender.sendMessage(ChatColor.RED + "WARNING: You are forcing the distribution of monthly top voter rewards.");
+        sender.sendMessage(ChatColor.YELLOW + "Making top voter rewards available for manual claim...");
         sender.sendMessage(ChatColor.RED + "This should normally happen automatically at the end of the month.");
         
         List<Map.Entry<UUID, Integer>> topVoters = plugin.getVoteDataHandler().getTopVoters();
@@ -112,7 +118,7 @@ public class VotifyAdminCommand implements CommandExecutor, TabCompleter {
         }
 
         int count = plugin.getVoteDataHandler().distributeTopVoterRewards(topVoters);
-        sender.sendMessage(ChatColor.GREEN + "Rewards distributed to " + count + " players.");
+        sender.sendMessage(ChatColor.GREEN + "Rewards are now available for claim by " + count + " players.");
     }
 
     private void showRewards(CommandSender sender) {
@@ -137,6 +143,7 @@ public class VotifyAdminCommand implements CommandExecutor, TabCompleter {
         sender.sendMessage(ChatColor.translateAlternateColorCodes('&', prefix + "&bVotify Admin Commands:"));
         sender.sendMessage(ChatColor.translateAlternateColorCodes('&', "&e/votifyadmin testvote <player> <servicename> &7- Simulate a vote."));
         sender.sendMessage(ChatColor.translateAlternateColorCodes('&', "&e/votifyadmin topvoter <leaderboard|givereward|rewards> &7- Manage top voters."));
+        sender.sendMessage(ChatColor.translateAlternateColorCodes('&', "&e/votifyadmin reload &7- Reload configuration."));
     }
 
     @Override
@@ -147,6 +154,7 @@ public class VotifyAdminCommand implements CommandExecutor, TabCompleter {
             List<String> completions = new ArrayList<>();
             completions.add("testvote");
             completions.add("topvoter");
+            completions.add("reload");
             return completions;
         } else if (args.length == 2) {
             if (args[0].equalsIgnoreCase("topvoter")) {

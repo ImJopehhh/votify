@@ -25,7 +25,7 @@ public class PlayerGui implements InventoryHolder {
     private final GuiType type;
 
     public enum GuiType {
-        MAIN, STATS, LEADERBOARD
+        MAIN, STATS, LEADERBOARD, CLAIM
     }
 
     public PlayerGui(Votify plugin, Player viewer, GuiType type) {
@@ -40,6 +40,7 @@ public class PlayerGui implements InventoryHolder {
         switch (type) {
             case STATS: return ChatColor.DARK_AQUA + "Your Statistics";
             case LEADERBOARD: return ChatColor.GOLD + "Top Voters (Monthly)";
+            case CLAIM: return ChatColor.GREEN + "Claim Reward";
             default: return ChatColor.BLUE + "Votify Menu";
         }
     }
@@ -108,6 +109,20 @@ public class PlayerGui implements InventoryHolder {
             }
 
             inv.setItem(22, createGuiItem(Material.ARROW, "&cBack", "&7Return to main menu"));
+        } else if (type == GuiType.CLAIM) {
+            int rank = plugin.getVoteDataHandler().getUnclaimedRewardRank(viewer.getUniqueId());
+            
+            if (rank != -1) {
+                inv.setItem(13, createGuiItem(Material.EMERALD, "&a&lClaim Reward", 
+                        "&7You were the &e#" + rank + " Top Voter", 
+                        "&7last month!", 
+                        "", 
+                        "&eClick to claim your reward!"));
+            } else {
+                inv.setItem(13, createGuiItem(Material.BARRIER, "&c&lNo Rewards", 
+                        "&7You do not have any", 
+                        "&7unclaimed rewards."));
+            }
         }
     }
 

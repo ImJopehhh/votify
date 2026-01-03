@@ -34,21 +34,19 @@ public class VotifyCommand implements CommandExecutor, TabCompleter {
 
         String subCommand = args[0].toLowerCase();
         
-        if (subCommand.equals("reload")) {
-            if (sender.hasPermission("votify.admin")) {
-                plugin.reloadConfig();
-                plugin.reloadVoteRewardsConfig();
-                sender.sendMessage(ChatColor.translateAlternateColorCodes('&', plugin.getConfig().getString("messages.prefix") + " " + plugin.getConfig().getString("messages.reload")));
-            } else {
-                sender.sendMessage(ChatColor.translateAlternateColorCodes('&', plugin.getConfig().getString("messages.prefix") + " " + plugin.getConfig().getString("messages.no-permission")));
-            }
-            return true;
-        } else if (subCommand.equals("help")) {
+        if (subCommand.equals("help")) {
              sendHelpMessage(sender);
              return true;
         } else if (subCommand.equals("leaderboard") || subCommand.equals("topvoter")) {
             if (sender instanceof Player) {
                 new PlayerGui(plugin, (Player) sender, PlayerGui.GuiType.LEADERBOARD).open();
+            } else {
+                sender.sendMessage(ChatColor.RED + "This command can only be used by players.");
+            }
+            return true;
+        } else if (subCommand.equals("claim")) {
+            if (sender instanceof Player) {
+                new PlayerGui(plugin, (Player) sender, PlayerGui.GuiType.CLAIM).open();
             } else {
                 sender.sendMessage(ChatColor.RED + "This command can only be used by players.");
             }
@@ -69,10 +67,7 @@ public class VotifyCommand implements CommandExecutor, TabCompleter {
         sender.sendMessage(ChatColor.translateAlternateColorCodes('&', prefix + "&bVotify Commands:"));
         sender.sendMessage(ChatColor.translateAlternateColorCodes('&', "&e/votify &7- Open the Vote Menu."));
         sender.sendMessage(ChatColor.translateAlternateColorCodes('&', "&e/votify leaderboard &7- Open the Top Voter Leaderboard."));
-        if (sender.hasPermission("votify.admin")) {
-            sender.sendMessage(ChatColor.translateAlternateColorCodes('&', "&e/votify reload &7- Reloads the configuration."));
-            sender.sendMessage(ChatColor.translateAlternateColorCodes('&', "&e/votifyadmin &7- Admin commands."));
-        }
+        sender.sendMessage(ChatColor.translateAlternateColorCodes('&', "&e/votify claim &7- Claim Top Voter Rewards."));
     }
 
     @Override
@@ -82,9 +77,7 @@ public class VotifyCommand implements CommandExecutor, TabCompleter {
             completions.add("help");
             completions.add("leaderboard");
             completions.add("topvoter");
-            if (sender.hasPermission("votify.admin")) {
-                completions.add("reload");
-            }
+            completions.add("claim");
             return completions;
         }
         return Collections.emptyList();

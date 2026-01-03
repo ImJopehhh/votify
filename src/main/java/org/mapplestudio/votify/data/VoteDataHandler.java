@@ -1,10 +1,13 @@
 package org.mapplestudio.votify.data;
 
 import org.bukkit.Bukkit;
+import org.bukkit.Material;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
+import org.bukkit.entity.Player;
+import org.bukkit.inventory.ItemStack;
 import org.mapplestudio.votify.Votify;
 import org.mapplestudio.votify.util.DiscordWebhook;
 
@@ -124,11 +127,11 @@ public class VoteDataHandler {
         // 1. Get Top Voters
         List<Map.Entry<UUID, Integer>> topVoters = getTopVoters();
         
-        // 2. Distribute Rewards Automatically
-        distributeTopVoterRewards(topVoters);
+        // 2. Store Unclaimed Rewards (Manual Claim System)
+        String monthKey = LocalDate.now().minusMonths(1).format(DateTimeFormatter.ofPattern("yyyy-MM"));
+        storeUnclaimedRewards(topVoters, monthKey);
 
         // 3. Save History
-        String monthKey = LocalDate.now().minusMonths(1).format(DateTimeFormatter.ofPattern("yyyy-MM"));
         for (int i = 0; i < Math.min(topVoters.size(), 10); i++) {
             Map.Entry<UUID, Integer> entry = topVoters.get(i);
             String path = "history." + monthKey + "." + (i + 1);
@@ -172,43 +175,151 @@ public class VoteDataHandler {
         saveVoteData();
     }
 
-    public int distributeTopVoterRewards(List<Map.Entry<UUID, Integer>> topVoters) {
+    private void storeUnclaimedRewards(List<Map.Entry<UUID, Integer>> topVoters, String monthKey) {
         ConfigurationSection topRewards = plugin.getVoteRewardsConfig().getConfigurationSection("topvoterrewards");
-        if (topRewards == null) return 0;
+        if (topRewards == null) return;
 
-        int count = 0;
         for (int i = 0; i < Math.min(topVoters.size(), 10); i++) {
             int rank = i + 1;
-            Map.Entry<UUID, Integer> entry = topVoters.get(i);
-            OfflinePlayer player = Bukkit.getOfflinePlayer(entry.getKey());
-            String playerName = player.getName() != null ? player.getName() : "Unknown";
-
-            List<String> rewards = new ArrayList<>();
+            UUID uuid = topVoters.get(i).getKey();
+            
+            // Check if this rank has rewards
+            boolean hasReward = false;
             for (String key : topRewards.getKeys(false)) {
                 String[] ranks = key.split(",");
                 for (String r : ranks) {
                     try {
                         if (Integer.parseInt(r.trim()) == rank) {
-                            rewards.addAll(topRewards.getStringList(key));
+                            hasReward = true;
                             break;
                         }
                     } catch (NumberFormatException ignored) {}
                 }
+                if (hasReward) break;
             }
 
-            if (!rewards.isEmpty()) {
-                count++;
-                for (String reward : rewards) {
-                    reward = reward.replace("%player%", playerName);
-                    addPendingReward(player.getUniqueId(), reward);
-                }
-                
-                if (player.isOnline()) {
-                    plugin.getVoteListener().processPendingRewards(player.getPlayer());
-                }
+            if (hasReward) {
+                getVoteData().set("unclaimed_rewards." + monthKey + "." + uuid.toString() + ".rank", rank);
+                getVoteData().set("unclaimed_rewards." + monthKey + "." + uuid.toString() + ".timestamp", System.currentTimeMillis());
             }
         }
-        return count;
+    }
+
+    public int getUnclaimedRewardRank(UUID uuid) {
+        ConfigurationSection unclaimed = getVoteData().getConfigurationSection("unclaimed_rewards");
+        if (unclaimed == null) return -1;
+
+        for (String monthKey : unclaimed.getKeys(false)) {
+            if (unclaimed.contains(monthKey + "." + uuid.toString())) {
+                long timestamp = unclaimed.getLong(monthKey + "." + uuid.toString() + ".timestamp");
+                // Check 28 days expiration (28 * 24 * 60 * 60 * 1000 = 2419200000 ms)
+                if (System.currentTimeMillis() - timestamp > 2419200000L) {
+                    // Expired
+                    getVoteData().set("unclaimed_rewards." + monthKey + "." + uuid.toString(), null);
+                    saveVoteData();
+                    continue;
+                }
+                return unclaimed.getInt(monthKey + "." + uuid.toString() + ".rank");
+            }
+        }
+        return -1;
+    }
+
+    public boolean claimReward(UUID uuid) {
+        ConfigurationSection unclaimed = getVoteData().getConfigurationSection("unclaimed_rewards");
+        if (unclaimed == null) return false;
+
+        for (String monthKey : unclaimed.getKeys(false)) {
+            if (unclaimed.contains(monthKey + "." + uuid.toString())) {
+                int rank = unclaimed.getInt(monthKey + "." + uuid.toString() + ".rank");
+                
+                // Check Inventory Space if player is online
+                OfflinePlayer offlinePlayer = Bukkit.getOfflinePlayer(uuid);
+                if (offlinePlayer.isOnline()) {
+                    Player player = offlinePlayer.getPlayer();
+                    List<String> rewards = getRewardsForRank(rank);
+                    int requiredSlots = calculateRequiredSlots(rewards);
+                    
+                    if (getEmptySlots(player) < requiredSlots) {
+                        return false; // Inventory full
+                    }
+                }
+
+                // Distribute rewards
+                distributeRewardForRank(uuid, rank);
+                
+                // Remove from unclaimed
+                getVoteData().set("unclaimed_rewards." + monthKey + "." + uuid.toString(), null);
+                saveVoteData();
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private List<String> getRewardsForRank(int rank) {
+        ConfigurationSection topRewards = plugin.getVoteRewardsConfig().getConfigurationSection("topvoterrewards");
+        List<String> rewards = new ArrayList<>();
+        if (topRewards == null) return rewards;
+
+        for (String key : topRewards.getKeys(false)) {
+            String[] ranks = key.split(",");
+            for (String r : ranks) {
+                try {
+                    if (Integer.parseInt(r.trim()) == rank) {
+                        rewards.addAll(topRewards.getStringList(key));
+                        break;
+                    }
+                } catch (NumberFormatException ignored) {}
+            }
+        }
+        return rewards;
+    }
+
+    private int calculateRequiredSlots(List<String> rewards) {
+        int slots = 0;
+        for (String reward : rewards) {
+            if (reward.toLowerCase().startsWith("item:")) {
+                slots++;
+            }
+        }
+        return slots;
+    }
+
+    private int getEmptySlots(Player player) {
+        int empty = 0;
+        for (ItemStack item : player.getInventory().getStorageContents()) {
+            if (item == null || item.getType() == Material.AIR) {
+                empty++;
+            }
+        }
+        return empty;
+    }
+
+    private void distributeRewardForRank(UUID uuid, int rank) {
+        List<String> rewards = getRewardsForRank(rank);
+        OfflinePlayer player = Bukkit.getOfflinePlayer(uuid);
+        String playerName = player.getName() != null ? player.getName() : "Unknown";
+
+        for (String reward : rewards) {
+            reward = reward.replace("%player%", playerName);
+            addPendingReward(uuid, reward);
+        }
+        
+        if (player.isOnline()) {
+            plugin.getVoteListener().processPendingRewards(player.getPlayer());
+        }
+    }
+
+    // Used for Admin Force Give
+    public int distributeTopVoterRewards(List<Map.Entry<UUID, Integer>> topVoters) {
+        // Instead of giving directly, we store them as unclaimed rewards for the current month (simulated)
+        // We use a special key "admin_force" or just the current month key to allow claiming.
+        // Let's use the current month key logic but force add it.
+        
+        String monthKey = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy-MM")); // Use current month for forced rewards
+        storeUnclaimedRewards(topVoters, monthKey);
+        return Math.min(topVoters.size(), 10);
     }
 
     private void sendDiscordWebhook(List<Map.Entry<UUID, Integer>> topVoters, String monthName) {
