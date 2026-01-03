@@ -48,8 +48,13 @@ public final class Votify extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new JoinListener(this), this);
 
         // Commands
-        getCommand("votify").setExecutor(new VotifyCommand(this));
-        getCommand("votifyadmin").setExecutor(new VotifyAdminCommand(this));
+        VotifyCommand votifyCommand = new VotifyCommand(this);
+        getCommand("votify").setExecutor(votifyCommand);
+        getCommand("votify").setTabCompleter(votifyCommand);
+
+        VotifyAdminCommand votifyAdminCommand = new VotifyAdminCommand(this);
+        getCommand("votifyadmin").setExecutor(votifyAdminCommand);
+        getCommand("votifyadmin").setTabCompleter(votifyAdminCommand);
 
         // PlaceholderAPI
         if (getServer().getPluginManager().getPlugin("PlaceholderAPI") != null) {

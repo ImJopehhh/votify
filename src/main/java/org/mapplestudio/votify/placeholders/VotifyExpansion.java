@@ -7,6 +7,8 @@ import org.mapplestudio.votify.Votify;
 
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 public class VotifyExpansion extends PlaceholderExpansion {
@@ -39,25 +41,58 @@ public class VotifyExpansion extends PlaceholderExpansion {
 
     @Override
     public String onRequest(OfflinePlayer player, String params) {
-        // Handle non-player specific placeholders first
+        // Handle non-player specific placeholders first (Global Placeholders)
         if (params.startsWith("topvoter_")) {
             // Format: topvoter_<monthOffset>_<position>_<type>
-            // type: name, votes
-            // monthOffset: 0 (current), 1 (last month), etc.
-            // Example: topvoter_1_1_name (Top 1 name from 1 month ago)
+            // OR: topvoter_alltime_<position>_<type>
             
             String[] parts = params.split("_");
+            
+            // All-time Top Voter
+            if (parts.length >= 4 && parts[1].equals("alltime")) {
+                try {
+                    int position = Integer.parseInt(parts[2]); // 1-based index
+                    String type = parts[3].toLowerCase();
+                    
+                    List<Map.Entry<UUID, Integer>> allTimeTop = plugin.getVoteDataHandler().getAllTimeTopVoters();
+                    if (position > allTimeTop.size()) {
+                        return type.equals("votes") ? "0" : "None";
+                    }
+                    
+                    Map.Entry<UUID, Integer> entry = allTimeTop.get(position - 1);
+                    if (type.equals("name")) {
+                        OfflinePlayer p = Bukkit.getOfflinePlayer(entry.getKey());
+                        return p.getName() != null ? p.getName() : "Unknown";
+                    } else if (type.equals("votes")) {
+                        return String.valueOf(entry.getValue());
+                    }
+                } catch (NumberFormatException e) {
+                    return "Error";
+                }
+            }
+            
+            // Monthly/Historical Top Voter
             if (parts.length >= 4) {
                 try {
                     int monthOffset = Integer.parseInt(parts[1]);
-                    int position = Integer.parseInt(parts[2]);
+                    int position = Integer.parseInt(parts[2]); // 1-based index
                     String type = parts[3].toLowerCase();
 
                     if (monthOffset == 0) {
                         // Current month (realtime)
-                        // This is expensive to calculate every time, ideally should be cached
-                        // For now, we'll just return "Calculating..." or implement a simple cache in DataHandler
-                        return "N/A"; 
+                        List<Map.Entry<UUID, Integer>> topVoters = plugin.getVoteDataHandler().getTopVoters();
+                        if (position > topVoters.size()) {
+                            return type.equals("votes") ? "0" : "None";
+                        }
+                        
+                        Map.Entry<UUID, Integer> entry = topVoters.get(position - 1);
+                        if (type.equals("name")) {
+                            OfflinePlayer p = Bukkit.getOfflinePlayer(entry.getKey());
+                            return p.getName() != null ? p.getName() : "Unknown";
+                        } else if (type.equals("votes")) {
+                            return String.valueOf(entry.getValue());
+                        }
+
                     } else {
                         // Historical data
                         String monthKey = LocalDate.now().minusMonths(monthOffset).format(DateTimeFormatter.ofPattern("yyyy-MM"));
@@ -80,8 +115,9 @@ public class VotifyExpansion extends PlaceholderExpansion {
             }
         }
 
+        // If the placeholder requires a player but none is provided (e.g. global hologram), return null
         if (player == null) {
-            return "";
+            return null;
         }
 
         String path = "players." + player.getUniqueId().toString();

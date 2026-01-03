@@ -72,10 +72,22 @@ public class PlayerGui implements InventoryHolder {
             int total = plugin.getVoteDataHandler().getVoteData().getInt(path + ".total", 0);
             int monthly = plugin.getVoteDataHandler().getVoteData().getInt(path + ".monthly", 0);
             int wins = plugin.getVoteDataHandler().getVoteData().getInt(path + ".wins", 0);
+            
+            // Calculate Rank
+            List<Map.Entry<UUID, Integer>> topVoters = plugin.getVoteDataHandler().getTopVoters();
+            int rank = -1;
+            for (int i = 0; i < topVoters.size(); i++) {
+                if (topVoters.get(i).getKey().equals(viewer.getUniqueId())) {
+                    rank = i + 1;
+                    break;
+                }
+            }
+            String rankStr = (rank != -1) ? "#" + rank : "Unranked";
 
             inv.setItem(13, createHeadItem(viewer, "&b&l" + viewer.getName(), 
                     "&7Total Votes: &f" + total,
                     "&7Monthly Votes: &f" + monthly,
+                    "&7Current Rank: &e" + rankStr,
                     "&7Monthly Wins: &6" + wins));
 
             inv.setItem(22, createGuiItem(Material.ARROW, "&cBack", "&7Return to main menu"));
@@ -83,7 +95,8 @@ public class PlayerGui implements InventoryHolder {
         } else if (type == GuiType.LEADERBOARD) {
             List<Map.Entry<UUID, Integer>> topVoters = plugin.getVoteDataHandler().getTopVoters();
             
-            int[] slots = {13, 12, 14, 11, 15, 10, 16}; // Center outward
+            // Display top 7 in a nice pattern
+            int[] slots = {13, 12, 14, 11, 15, 10, 16};
             
             for (int i = 0; i < Math.min(topVoters.size(), slots.length); i++) {
                 Map.Entry<UUID, Integer> entry = topVoters.get(i);

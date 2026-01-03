@@ -21,6 +21,10 @@ public class VoteDataHandler {
     private FileConfiguration voteDataConfig;
     private File voteDataFile;
     private final Object lock = new Object();
+    
+    // Cache for realtime top voters
+    private List<Map.Entry<UUID, Integer>> cachedTopVoters = new ArrayList<>();
+    private long lastCacheUpdate = 0;
 
     public VoteDataHandler(Votify plugin) {
         this.plugin = plugin;
@@ -41,7 +45,6 @@ public class VoteDataHandler {
     }
 
     public void saveVoteData() {
-        // Perform save asynchronously to avoid blocking the main thread
         Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
             synchronized (lock) {
                 try {
@@ -62,7 +65,7 @@ public class VoteDataHandler {
 
     public void addVote(UUID playerUUID, String serviceName) {
         synchronized (lock) {
-            checkMonthlyReset(); // Ensure month is correct before adding
+            checkMonthlyReset();
             String path = "players." + playerUUID.toString();
             int totalVotes = getVoteData().getInt(path + ".total", 0) + 1;
             int monthlyVotes = getVoteData().getInt(path + ".monthly", 0) + 1;
@@ -73,6 +76,8 @@ public class VoteDataHandler {
             getVoteData().set(path + ".weekly", weeklyVotes);
             getVoteData().set(path + ".last-vote-service", serviceName);
             getVoteData().set(path + ".last-vote-time", System.currentTimeMillis());
+            
+            lastCacheUpdate = 0;
         }
         saveVoteData();
     }
@@ -104,7 +109,6 @@ public class VoteDataHandler {
         int lastMonth = plugin.getConfig().getInt("data.last-month", -1);
 
         if (lastMonth != -1 && lastMonth != currentMonth) {
-            // Month changed!
             processMonthlyReset(lastMonth);
         }
 
@@ -120,7 +124,10 @@ public class VoteDataHandler {
         // 1. Get Top Voters
         List<Map.Entry<UUID, Integer>> topVoters = getTopVoters();
         
-        // 2. Save History
+        // 2. Distribute Rewards Automatically
+        distributeTopVoterRewards(topVoters);
+
+        // 3. Save History
         String monthKey = LocalDate.now().minusMonths(1).format(DateTimeFormatter.ofPattern("yyyy-MM"));
         for (int i = 0; i < Math.min(topVoters.size(), 10); i++) {
             Map.Entry<UUID, Integer> entry = topVoters.get(i);
@@ -128,7 +135,6 @@ public class VoteDataHandler {
             getVoteData().set(path + ".uuid", entry.getKey().toString());
             getVoteData().set(path + ".votes", entry.getValue());
             
-            // Add "win" to player stats
             if (i == 0) { // Top 1
                 String playerPath = "players." + entry.getKey().toString();
                 int wins = getVoteData().getInt(playerPath + ".wins", 0) + 1;
@@ -136,12 +142,12 @@ public class VoteDataHandler {
             }
         }
 
-        // 3. Clean old history (older than 12 months)
+        // 4. Clean old history
         ConfigurationSection historySection = getVoteData().getConfigurationSection("history");
         if (historySection != null) {
             List<String> keys = new ArrayList<>(historySection.getKeys(false));
             if (keys.size() > 12) {
-                Collections.sort(keys); // Sort by date string
+                Collections.sort(keys);
                 while (keys.size() > 12) {
                     String oldKey = keys.remove(0);
                     getVoteData().set("history." + oldKey, null);
@@ -149,12 +155,12 @@ public class VoteDataHandler {
             }
         }
 
-        // 4. Send Discord Webhook
+        // 5. Send Discord Webhook
         if (plugin.getConfig().getBoolean("discord.enabled")) {
             sendDiscordWebhook(topVoters, monthKey);
         }
 
-        // 5. Reset Monthly Votes
+        // 6. Reset Monthly Votes
         ConfigurationSection players = getVoteData().getConfigurationSection("players");
         if (players != null) {
             for (String uuid : players.getKeys(false)) {
@@ -162,9 +168,47 @@ public class VoteDataHandler {
             }
         }
         
-        // Note: saveVoteData() is called by the caller of checkMonthlyReset usually, 
-        // but since this is internal logic, we should ensure it saves.
-        // However, checkMonthlyReset is called inside synchronized blocks of addVote, so we are good.
+        lastCacheUpdate = 0;
+        saveVoteData();
+    }
+
+    public int distributeTopVoterRewards(List<Map.Entry<UUID, Integer>> topVoters) {
+        ConfigurationSection topRewards = plugin.getVoteRewardsConfig().getConfigurationSection("topvoterrewards");
+        if (topRewards == null) return 0;
+
+        int count = 0;
+        for (int i = 0; i < Math.min(topVoters.size(), 10); i++) {
+            int rank = i + 1;
+            Map.Entry<UUID, Integer> entry = topVoters.get(i);
+            OfflinePlayer player = Bukkit.getOfflinePlayer(entry.getKey());
+            String playerName = player.getName() != null ? player.getName() : "Unknown";
+
+            List<String> rewards = new ArrayList<>();
+            for (String key : topRewards.getKeys(false)) {
+                String[] ranks = key.split(",");
+                for (String r : ranks) {
+                    try {
+                        if (Integer.parseInt(r.trim()) == rank) {
+                            rewards.addAll(topRewards.getStringList(key));
+                            break;
+                        }
+                    } catch (NumberFormatException ignored) {}
+                }
+            }
+
+            if (!rewards.isEmpty()) {
+                count++;
+                for (String reward : rewards) {
+                    reward = reward.replace("%player%", playerName);
+                    addPendingReward(player.getUniqueId(), reward);
+                }
+                
+                if (player.isOnline()) {
+                    plugin.getVoteListener().processPendingRewards(player.getPlayer());
+                }
+            }
+        }
+        return count;
     }
 
     private void sendDiscordWebhook(List<Map.Entry<UUID, Integer>> topVoters, String monthName) {
@@ -197,6 +241,10 @@ public class VoteDataHandler {
     }
 
     public List<Map.Entry<UUID, Integer>> getTopVoters() {
+        if (System.currentTimeMillis() - lastCacheUpdate < 60000 && !cachedTopVoters.isEmpty()) {
+            return new ArrayList<>(cachedTopVoters);
+        }
+
         Map<UUID, Integer> votes = new HashMap<>();
         synchronized (lock) {
             ConfigurationSection players = getVoteData().getConfigurationSection("players");
@@ -205,6 +253,30 @@ public class VoteDataHandler {
                     int monthly = players.getInt(uuidStr + ".monthly", 0);
                     if (monthly > 0) {
                         votes.put(UUID.fromString(uuidStr), monthly);
+                    }
+                }
+            }
+        }
+
+        List<Map.Entry<UUID, Integer>> sorted = votes.entrySet().stream()
+                .sorted(Map.Entry.<UUID, Integer>comparingByValue().reversed())
+                .collect(Collectors.toList());
+        
+        cachedTopVoters = sorted;
+        lastCacheUpdate = System.currentTimeMillis();
+        
+        return sorted;
+    }
+
+    public List<Map.Entry<UUID, Integer>> getAllTimeTopVoters() {
+        Map<UUID, Integer> votes = new HashMap<>();
+        synchronized (lock) {
+            ConfigurationSection players = getVoteData().getConfigurationSection("players");
+            if (players != null) {
+                for (String uuidStr : players.getKeys(false)) {
+                    int total = players.getInt(uuidStr + ".total", 0);
+                    if (total > 0) {
+                        votes.put(UUID.fromString(uuidStr), total);
                     }
                 }
             }

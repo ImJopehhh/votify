@@ -22,3 +22,21 @@ rewards:
     - "message: &dThanks for voting on Minecraft-Server.net!"
     - "command: give %player% golden_apple 5"
     - "command: msg %player% You received a special reward!"
+
+# Top Voter Rewards
+# Define rewards for specific ranks.
+# You can use single numbers (e.g., "1") or comma-separated lists (e.g., "2,3").
+topvoterrewards:
+  "1":
+    - "message: &6Congratulations! You are the #1 Top Voter of the month!"
+    - "command: eco give %player% 10000"
+    - "item: DIAMOND_BLOCK 5"
+  "2":
+    - "message: &eYou are the #2 Top Voter!"
+    - "command: eco give %player% 5000"
+  "3":
+    - "message: &eYou are the #3 Top Voter!"
+    - "command: eco give %player% 2500"
+  "4,5,6,7,8,9,10":
+    - "message: &aYou made it to the Top 10 Voters!"
+    - "command: eco give %player% 1000"
