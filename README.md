@@ -1,4 +1,4 @@
-# Votify `v1.0.0-Alpha`
+# Votify `Alpha`
 
 **Votify** is a high-performance, customizable voting management plugin for Minecraft servers. Developed by **ImJopeh** at **Mapple Studio**, Votify streamlines the connection between your server and voting websites, ensuring your players are rewarded instantly and your community remains engaged.
 
@@ -20,7 +20,7 @@
 ## 🛠 Installation
 
 1. **Prerequisites**: Ensure you have [NuVotifier](https://www.spigotmc.org/resources/nuvotifier.13449/) installed and configured on your server.
-2. **Download**: Grab the latest `.jar` from the [Releases](https://www.google.com/search?q=https://github.com/your-repo/releases) page.
+2. **Download**: Grab the latest `.jar` from the [Releases](https://github.com/ImJopehhh/votify/releases) page.
 3. **Deploy**: Place the file into your server's `/plugins/` directory.
 4. **Launch**: Restart your server to generate the configuration files.
 5. **Configure**: Edit `config.yml` to set up your rewards and Discord Webhook URL.
@@ -36,16 +36,53 @@ To ensure **Votify** functions correctly, please check the following requirement
 * **[PlaceholderAPI](https://www.spigotmc.org/resources/placeholderapi.6245/)**: Required if you want to display Top Voter statistics on leaderboards, scoreboards, or holograms.
 
 ---
-
 ## 📊 Placeholders
 
 Integrate Votify data into your Scoreboards, TAB, or Holograms using **PlaceholderAPI**:
 
+### Global Statistics
+
 | Placeholder | Description |
 | --- | --- |
-| `%votify_topvoter_<month>_<number>_votes%` | Displays the vote count of the voter at rank X |
-| `%votify_topvoter_<month>_<number>_name%` | Displays the name of the voter at rank X |
-| `%votify_player_votes%` | Displays the current player's total votes |
+| `%Votify_total%` | Total votes accumulated by the entire server |
+| `%Votify_alltimetotal%` | Total server votes over the last 6 months |
+| `%Votify_lastmonthtotal%` | Total server votes from the previous month |
+| `%Votify_TimeUntilDayReset%` | Time remaining until the daily vote reset |
+
+### Player Statistics
+
+| Placeholder | Description |
+| --- | --- |
+| `%Votify_Total_AllTime%` | Player's personal total votes (6-month period) |
+| `%Votify_Total_Monthly%` | Player's personal total votes for the current month |
+| `%Votify_Total_Weekly%` | Player's personal total votes for the current week |
+| `%Votify_BestWeeklyTotal%` | Player's highest weekly vote record |
+| `%Votify_BestMonthlyTotal%` | Player's highest monthly vote record |
+| `%Votify_MonthVoteStreak%` | Player's current monthly voting streak |
+| `%Votify_BestMonthVoteStreak%` | Player's all-time best monthly voting streak |
+| `%Votify_Top_All_Position%` | Player's current rank in the 6-month leaderboard |
+| `%Votify_Top_Month_Position%` | Player's current rank in the monthly leaderboard |
+| `%Votify_Top_Week_Position%` | Player's current rank in the weekly leaderboard |
+
+### Leaderboard Data
+
+| Placeholder | Description |
+| --- | --- |
+| `%Votify_Top_All_<number>_name%` | Name of the voter at specific rank (6-month) |
+| `%Votify_Top_All_<number>_votes%` | Vote count of the voter at specific rank (6-month) |
+| `%Votify_Top_Month_<number>_name%` | Name of the voter at specific rank (Monthly) |
+| `%Votify_Top_Month_<number>_votes%` | Vote count of the voter at specific rank (Monthly) |
+| `%Votify_Top_Week_<number>_name%` | Name of the voter at specific rank (Weekly) |
+| `%Votify_Top_Week_<number>_votes%` | Vote count of the voter at specific rank (Weekly) |
+
+### Vote Party
+
+| Placeholder | Description |
+| --- | --- |
+| `%Votify_VotePartyContributedVotes%` | Number of votes the player has contributed to the current party |
+| `%Votify_VotePartyVotesCurrent%` | Current amount of votes collected for the Vote Party |
+| `%Votify_VotePartyVotesNeeded%` | Remaining votes needed to trigger the Vote Party |
+| `%Votify_VotePartyVotesRequired%` | Total votes required to start a Vote Party |
 
 ---
 
