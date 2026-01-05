@@ -23,6 +23,7 @@ discord:
 # System Data (Do not edit manually)
 data:
   last-month: -1
+  last-week: -1
 
 # Messages
 messages:
@@ -31,8 +32,16 @@ messages:
   vote-received: "&aThanks, &e%player%&a, for voting on &e%service%&a!"
   # Message sent to the whole server (Global Broadcast)
   # Leave empty "" to disable.
-  broadcast: "&b%player% &7just voted on &e%service% &7and received a reward!"
-
+  broadcast: "&b%player% &7just voted on &e%service%&7and received a reward!"
+  
   player-not-found: "%prefix% &cPlayer %player% not found."
   no-permission: "%prefix% &cYou don't have permission to use this command."
   reload: "%prefix% &aConfiguration reloaded successfully."
+
+  # Vote Party Messages
+  voteparty:
+    progress: "%prefix% &d&lVOTE PARTY! &7Another vote has been counted! &8(&e%current_votes%&7/&6%required_votes%&8)"
+    reached:
+      - "&d&lVOTE PARTY!"
+      - "&7The vote goal has been reached! Everyone online receives a reward!"
+      - ""

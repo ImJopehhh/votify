@@ -63,15 +63,6 @@ public class VoteListener implements Listener {
         if (offlinePlayer.hasPlayedBefore()) {
             return offlinePlayer;
         }
-
-        // Third, iterate through offline players (Expensive operation, use sparingly)
-        // Only do this if the server is in offline mode or we really suspect a case mismatch
-        // Note: getOfflinePlayers() can be very slow on large servers.
-        // A better optimization is to rely on the fact that if getOfflinePlayer(username) returned a UUID based on name,
-        // and hasPlayedBefore() is false, it might just be a new UUID.
-        
-        // For now, we will stick to the standard lookup as iterating all players is too risky for performance.
-        // If the server is offline mode, Bukkit usually handles case-insensitivity if the UUID generation is consistent.
         
         return offlinePlayer;
     }
@@ -135,25 +126,29 @@ public class VoteListener implements Listener {
         plugin.getVoteDataHandler().clearPendingRewards(player.getUniqueId());
 
         for (String rewardString : pending) {
-            String[] parts = rewardString.split(":", 2);
-            String type = parts[0].trim();
-            String value = parts.length > 1 ? parts[1].trim() : "";
+            processRewardString(player, rewardString);
+        }
+    }
+    
+    public void processRewardString(Player player, String rewardString) {
+        String[] parts = rewardString.split(":", 2);
+        String type = parts[0].trim();
+        String value = parts.length > 1 ? parts[1].trim() : "";
 
-            switch (type.toLowerCase()) {
-                case "command":
-                    Bukkit.dispatchCommand(Bukkit.getConsoleSender(), value);
-                    break;
-                case "message":
-                    String prefix = plugin.getConfig().getString("messages.prefix", "&8[&bVotify&8] &r");
-                    value = value.replace("%prefix%", prefix);
-                    player.sendMessage(ChatColor.translateAlternateColorCodes('&', value));
-                    break;
-                case "item":
-                    giveItem(player, value);
-                    break;
-                default:
-                    plugin.getLogger().warning("Unknown reward type: " + type);
-            }
+        switch (type.toLowerCase()) {
+            case "command":
+                Bukkit.dispatchCommand(Bukkit.getConsoleSender(), value);
+                break;
+            case "message":
+                String prefix = plugin.getConfig().getString("messages.prefix", "&8[&bVotify&8] &r");
+                value = value.replace("%prefix%", prefix);
+                player.sendMessage(ChatColor.translateAlternateColorCodes('&', value));
+                break;
+            case "item":
+                giveItem(player, value);
+                break;
+            default:
+                plugin.getLogger().warning("Unknown reward type: " + type);
         }
     }
 

@@ -1,6 +1,7 @@
 package org.mapplestudio.votify.data;
 
 import org.bukkit.Bukkit;
+import org.bukkit.ChatColor;
 import org.bukkit.Material;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.configuration.ConfigurationSection;
@@ -33,6 +34,7 @@ public class VoteDataHandler {
         this.plugin = plugin;
         setup();
         checkMonthlyReset();
+        checkWeeklyReset();
     }
 
     public void setup() {
@@ -69,6 +71,7 @@ public class VoteDataHandler {
     public void addVote(UUID playerUUID, String serviceName) {
         synchronized (lock) {
             checkMonthlyReset();
+            checkWeeklyReset();
             String path = "players." + playerUUID.toString();
             int totalVotes = getVoteData().getInt(path + ".total", 0) + 1;
             int monthlyVotes = getVoteData().getInt(path + ".monthly", 0) + 1;
@@ -80,9 +83,63 @@ public class VoteDataHandler {
             getVoteData().set(path + ".last-vote-service", serviceName);
             getVoteData().set(path + ".last-vote-time", System.currentTimeMillis());
             
+            // Update Best Stats
+            int bestWeekly = getVoteData().getInt(path + ".best-weekly", 0);
+            if (weeklyVotes > bestWeekly) {
+                getVoteData().set(path + ".best-weekly", weeklyVotes);
+            }
+            
+            int bestMonthly = getVoteData().getInt(path + ".best-monthly", 0);
+            if (monthlyVotes > bestMonthly) {
+                getVoteData().set(path + ".best-monthly", monthlyVotes);
+            }
+
+            // Vote Party Logic
+            if (plugin.getVoteRewardsConfig().getBoolean("voteparty.enabled", false)) {
+                int currentPartyVotes = getVoteData().getInt("voteparty.current", 0) + 1;
+                int requiredVotes = plugin.getVoteRewardsConfig().getInt("voteparty.votes-required", 50);
+                
+                getVoteData().set("voteparty.current", currentPartyVotes);
+                
+                // Track contribution
+                int contribution = getVoteData().getInt(path + ".voteparty-contribution", 0) + 1;
+                getVoteData().set(path + ".voteparty-contribution", contribution);
+
+                if (currentPartyVotes >= requiredVotes) {
+                    // Trigger Vote Party
+                    Bukkit.getScheduler().runTask(plugin, this::triggerVoteParty);
+                    getVoteData().set("voteparty.current", 0);
+                    // Reset contributions? Usually kept until next party or forever. Let's keep for now.
+                } else {
+                    // Send progress message
+                    String progressMsg = plugin.getConfig().getString("messages.voteparty.progress");
+                    if (progressMsg != null && !progressMsg.isEmpty()) {
+                        progressMsg = progressMsg.replace("%current_votes%", String.valueOf(currentPartyVotes))
+                                                 .replace("%required_votes%", String.valueOf(requiredVotes));
+                        Bukkit.broadcastMessage(ChatColor.translateAlternateColorCodes('&', progressMsg));
+                    }
+                }
+            }
+            
             lastCacheUpdate = 0;
         }
         saveVoteData();
+    }
+
+    private void triggerVoteParty() {
+        List<String> messages = plugin.getConfig().getStringList("messages.voteparty.reached");
+        for (String msg : messages) {
+            Bukkit.broadcastMessage(ChatColor.translateAlternateColorCodes('&', msg));
+        }
+
+        List<String> rewards = plugin.getVoteRewardsConfig().getStringList("voteparty.rewards");
+        for (Player player : Bukkit.getOnlinePlayers()) {
+            for (String reward : rewards) {
+                String finalReward = reward.replace("%player%", player.getName());
+                // Execute immediately for online players
+                plugin.getVoteListener().processRewardString(player, finalReward);
+            }
+        }
     }
 
     public void addPendingReward(UUID playerUUID, String rewardString) {
@@ -120,6 +177,22 @@ public class VoteDataHandler {
             plugin.saveConfig();
         }
     }
+    
+    private void checkWeeklyReset() {
+        // Simple week check using Calendar week or just day of year / 7
+        // Better: Use ISO week number
+        int currentWeek = Calendar.getInstance().get(Calendar.WEEK_OF_YEAR);
+        int lastWeek = plugin.getConfig().getInt("data.last-week", -1);
+        
+        if (lastWeek != -1 && lastWeek != currentWeek) {
+            processWeeklyReset();
+        }
+        
+        if (lastWeek != currentWeek) {
+            plugin.getConfig().set("data.last-week", currentWeek);
+            plugin.saveConfig();
+        }
+    }
 
     private void processMonthlyReset(int previousMonth) {
         plugin.getLogger().info("Processing monthly reset for month: " + previousMonth);
@@ -131,7 +204,7 @@ public class VoteDataHandler {
         String monthKey = LocalDate.now().minusMonths(1).format(DateTimeFormatter.ofPattern("yyyy-MM"));
         storeUnclaimedRewards(topVoters, monthKey);
 
-        // 3. Save History
+        // 3. Save History & Update Streaks
         for (int i = 0; i < Math.min(topVoters.size(), 10); i++) {
             Map.Entry<UUID, Integer> entry = topVoters.get(i);
             String path = "history." + monthKey + "." + (i + 1);
@@ -142,6 +215,30 @@ public class VoteDataHandler {
                 String playerPath = "players." + entry.getKey().toString();
                 int wins = getVoteData().getInt(playerPath + ".wins", 0) + 1;
                 getVoteData().set(playerPath + ".wins", wins);
+            }
+        }
+        
+        // Update Streaks for all players who voted this month
+        ConfigurationSection players = getVoteData().getConfigurationSection("players");
+        if (players != null) {
+            for (String uuid : players.getKeys(false)) {
+                int monthly = players.getInt(uuid + ".monthly", 0);
+                int currentStreak = players.getInt(uuid + ".streak", 0);
+                
+                if (monthly > 0) {
+                    currentStreak++;
+                    getVoteData().set(uuid + ".streak", currentStreak);
+                    
+                    int bestStreak = players.getInt(uuid + ".best-streak", 0);
+                    if (currentStreak > bestStreak) {
+                        getVoteData().set(uuid + ".best-streak", currentStreak);
+                    }
+                } else {
+                    getVoteData().set(uuid + ".streak", 0);
+                }
+                
+                // Reset Monthly
+                getVoteData().set(uuid + ".monthly", 0);
             }
         }
 
@@ -162,16 +259,19 @@ public class VoteDataHandler {
         if (plugin.getConfig().getBoolean("discord.enabled")) {
             sendDiscordWebhook(topVoters, monthKey);
         }
-
-        // 6. Reset Monthly Votes
+        
+        lastCacheUpdate = 0;
+        saveVoteData();
+    }
+    
+    private void processWeeklyReset() {
+        plugin.getLogger().info("Processing weekly reset.");
         ConfigurationSection players = getVoteData().getConfigurationSection("players");
         if (players != null) {
             for (String uuid : players.getKeys(false)) {
-                getVoteData().set("players." + uuid + ".monthly", 0);
+                getVoteData().set(uuid + ".weekly", 0);
             }
         }
-        
-        lastCacheUpdate = 0;
         saveVoteData();
     }
 
@@ -313,10 +413,6 @@ public class VoteDataHandler {
 
     // Used for Admin Force Give
     public int distributeTopVoterRewards(List<Map.Entry<UUID, Integer>> topVoters) {
-        // Instead of giving directly, we store them as unclaimed rewards for the current month (simulated)
-        // We use a special key "admin_force" or just the current month key to allow claiming.
-        // Let's use the current month key logic but force add it.
-        
         String monthKey = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy-MM")); // Use current month for forced rewards
         storeUnclaimedRewards(topVoters, monthKey);
         return Math.min(topVoters.size(), 10);
@@ -378,6 +474,24 @@ public class VoteDataHandler {
         
         return sorted;
     }
+    
+    public List<Map.Entry<UUID, Integer>> getWeeklyTopVoters() {
+        Map<UUID, Integer> votes = new HashMap<>();
+        synchronized (lock) {
+            ConfigurationSection players = getVoteData().getConfigurationSection("players");
+            if (players != null) {
+                for (String uuidStr : players.getKeys(false)) {
+                    int weekly = players.getInt(uuidStr + ".weekly", 0);
+                    if (weekly > 0) {
+                        votes.put(UUID.fromString(uuidStr), weekly);
+                    }
+                }
+            }
+        }
+        return votes.entrySet().stream()
+                .sorted(Map.Entry.<UUID, Integer>comparingByValue().reversed())
+                .collect(Collectors.toList());
+    }
 
     public List<Map.Entry<UUID, Integer>> getAllTimeTopVoters() {
         Map<UUID, Integer> votes = new HashMap<>();
@@ -396,5 +510,18 @@ public class VoteDataHandler {
         return votes.entrySet().stream()
                 .sorted(Map.Entry.<UUID, Integer>comparingByValue().reversed())
                 .collect(Collectors.toList());
+    }
+    
+    public int getTotalServerVotes() {
+        int total = 0;
+        synchronized (lock) {
+            ConfigurationSection players = getVoteData().getConfigurationSection("players");
+            if (players != null) {
+                for (String uuidStr : players.getKeys(false)) {
+                    total += players.getInt(uuidStr + ".total", 0);
+                }
+            }
+        }
+        return total;
     }
 }

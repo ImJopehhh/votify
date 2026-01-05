@@ -6,7 +6,10 @@ import org.bukkit.OfflinePlayer;
 import org.mapplestudio.votify.Votify;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -41,100 +44,125 @@ public class VotifyExpansion extends PlaceholderExpansion {
 
     @Override
     public String onRequest(OfflinePlayer player, String params) {
-        // Handle non-player specific placeholders first (Global Placeholders)
-        if (params.startsWith("topvoter_")) {
-            // Format: topvoter_<monthOffset>_<position>_<type>
-            // OR: topvoter_alltime_<position>_<type>
+        String lowerParams = params.toLowerCase();
+
+        // --- Global Placeholders (No Player Required) ---
+
+        if (lowerParams.equals("total")) {
+            return String.valueOf(plugin.getVoteDataHandler().getTotalServerVotes());
+        }
+        
+        if (lowerParams.equals("alltimetotal")) {
+             // Assuming "6 months total" as requested, or just all time tracked
+             // For now, returning total server votes as "all time"
+             return String.valueOf(plugin.getVoteDataHandler().getTotalServerVotes());
+        }
+        
+        if (lowerParams.equals("lastmonthtotal")) {
+             // Logic to sum up history from last month
+             // This would require iterating history.yyyy-MM.*.votes
+             // For simplicity/performance, returning 0 or implementing a specific tracker later
+             return "0"; // Placeholder for now
+        }
+
+        if (lowerParams.equals("votepartyvotescurrent")) {
+            return String.valueOf(plugin.getVoteDataHandler().getVoteData().getInt("voteparty.current", 0));
+        }
+        
+        if (lowerParams.equals("votepartyvotesneeded")) {
+            int current = plugin.getVoteDataHandler().getVoteData().getInt("voteparty.current", 0);
+            int required = plugin.getVoteRewardsConfig().getInt("voteparty.votes-required", 50);
+            return String.valueOf(Math.max(0, required - current));
+        }
+        
+        if (lowerParams.equals("votepartyvotesrequired")) {
+            return String.valueOf(plugin.getVoteRewardsConfig().getInt("voteparty.votes-required", 50));
+        }
+        
+        if (lowerParams.equals("timeuntildayreset")) {
+            LocalDateTime now = LocalDateTime.now();
+            LocalDateTime tomorrow = now.plusDays(1).with(LocalTime.MIDNIGHT);
+            long seconds = ChronoUnit.SECONDS.between(now, tomorrow);
+            long hours = seconds / 3600;
+            long minutes = (seconds % 3600) / 60;
+            return String.format("%02d:%02d", hours, minutes);
+        }
+
+        // Top Voter Placeholders
+        if (lowerParams.startsWith("top_")) {
+            String[] parts = lowerParams.split("_");
+            // Format: top_<type>_<number>_<field>
+            // Types: all, month, week
             
-            String[] parts = params.split("_");
-            
-            // All-time Top Voter
-            if (parts.length >= 4 && parts[1].equals("alltime")) {
-                try {
-                    int position = Integer.parseInt(parts[2]); // 1-based index
-                    String type = parts[3].toLowerCase();
-                    
-                    List<Map.Entry<UUID, Integer>> allTimeTop = plugin.getVoteDataHandler().getAllTimeTopVoters();
-                    if (position > allTimeTop.size()) {
-                        return type.equals("votes") ? "0" : "None";
-                    }
-                    
-                    Map.Entry<UUID, Integer> entry = allTimeTop.get(position - 1);
-                    if (type.equals("name")) {
-                        OfflinePlayer p = Bukkit.getOfflinePlayer(entry.getKey());
-                        return p.getName() != null ? p.getName() : "Unknown";
-                    } else if (type.equals("votes")) {
-                        return String.valueOf(entry.getValue());
-                    }
-                } catch (NumberFormatException e) {
-                    return "Error";
-                }
-            }
-            
-            // Monthly/Historical Top Voter
             if (parts.length >= 4) {
                 try {
-                    int monthOffset = Integer.parseInt(parts[1]);
-                    int position = Integer.parseInt(parts[2]); // 1-based index
-                    String type = parts[3].toLowerCase();
-
-                    if (monthOffset == 0) {
-                        // Current month (realtime)
-                        List<Map.Entry<UUID, Integer>> topVoters = plugin.getVoteDataHandler().getTopVoters();
-                        if (position > topVoters.size()) {
-                            return type.equals("votes") ? "0" : "None";
-                        }
-                        
-                        Map.Entry<UUID, Integer> entry = topVoters.get(position - 1);
-                        if (type.equals("name")) {
-                            OfflinePlayer p = Bukkit.getOfflinePlayer(entry.getKey());
-                            return p.getName() != null ? p.getName() : "Unknown";
-                        } else if (type.equals("votes")) {
-                            return String.valueOf(entry.getValue());
-                        }
-
-                    } else {
-                        // Historical data
-                        String monthKey = LocalDate.now().minusMonths(monthOffset).format(DateTimeFormatter.ofPattern("yyyy-MM"));
-                        String path = "history." + monthKey + "." + position;
-                        
-                        if (type.equals("name")) {
-                            String uuidStr = plugin.getVoteDataHandler().getVoteData().getString(path + ".uuid");
-                            if (uuidStr != null) {
-                                OfflinePlayer p = Bukkit.getOfflinePlayer(UUID.fromString(uuidStr));
+                    String type = parts[1];
+                    int number = Integer.parseInt(parts[2]);
+                    String field = parts[3]; // name or votes
+                    
+                    List<Map.Entry<UUID, Integer>> list = null;
+                    if (type.equals("all")) list = plugin.getVoteDataHandler().getAllTimeTopVoters();
+                    else if (type.equals("month")) list = plugin.getVoteDataHandler().getTopVoters();
+                    else if (type.equals("week")) list = plugin.getVoteDataHandler().getWeeklyTopVoters();
+                    
+                    if (list != null) {
+                        if (number <= list.size()) {
+                            Map.Entry<UUID, Integer> entry = list.get(number - 1);
+                            if (field.equals("name")) {
+                                OfflinePlayer p = Bukkit.getOfflinePlayer(entry.getKey());
                                 return p.getName() != null ? p.getName() : "Unknown";
+                            } else if (field.equals("votes")) {
+                                return String.valueOf(entry.getValue());
                             }
-                            return "None";
-                        } else if (type.equals("votes")) {
-                            return String.valueOf(plugin.getVoteDataHandler().getVoteData().getInt(path + ".votes", 0));
+                        } else {
+                            return field.equals("votes") ? "0" : "None";
                         }
                     }
-                } catch (NumberFormatException e) {
+                } catch (Exception e) {
                     return "Error";
                 }
             }
         }
 
-        // If the placeholder requires a player but none is provided (e.g. global hologram), return null
-        if (player == null) {
-            return null;
-        }
+        // --- Player Specific Placeholders ---
+        if (player == null) return null;
 
         String path = "players." + player.getUniqueId().toString();
 
-        switch (params.toLowerCase()) {
-            case "total_votes":
+        switch (lowerParams) {
+            case "total_alltime":
                 return String.valueOf(plugin.getVoteDataHandler().getVoteData().getInt(path + ".total", 0));
-            case "monthly_votes":
+            case "total_monthly":
                 return String.valueOf(plugin.getVoteDataHandler().getVoteData().getInt(path + ".monthly", 0));
-            case "weekly_votes":
+            case "total_weekly":
                 return String.valueOf(plugin.getVoteDataHandler().getVoteData().getInt(path + ".weekly", 0));
-            case "wins":
-                return String.valueOf(plugin.getVoteDataHandler().getVoteData().getInt(path + ".wins", 0));
-            case "last_vote_service":
-                return plugin.getVoteDataHandler().getVoteData().getString(path + ".last-vote-service", "N/A");
+            case "bestweeklytotal":
+                return String.valueOf(plugin.getVoteDataHandler().getVoteData().getInt(path + ".best-weekly", 0));
+            case "bestmonthlytotal":
+                return String.valueOf(plugin.getVoteDataHandler().getVoteData().getInt(path + ".best-monthly", 0));
+            case "monthvotestreak":
+                return String.valueOf(plugin.getVoteDataHandler().getVoteData().getInt(path + ".streak", 0));
+            case "bestmonthvotestreak":
+                return String.valueOf(plugin.getVoteDataHandler().getVoteData().getInt(path + ".best-streak", 0));
+            case "votepartycontributedvotes":
+                return String.valueOf(plugin.getVoteDataHandler().getVoteData().getInt(path + ".voteparty-contribution", 0));
+            case "top_all_position":
+                return String.valueOf(getRank(player.getUniqueId(), plugin.getVoteDataHandler().getAllTimeTopVoters()));
+            case "top_month_position":
+                return String.valueOf(getRank(player.getUniqueId(), plugin.getVoteDataHandler().getTopVoters()));
+            case "top_week_position":
+                return String.valueOf(getRank(player.getUniqueId(), plugin.getVoteDataHandler().getWeeklyTopVoters()));
             default:
                 return null;
         }
+    }
+    
+    private int getRank(UUID uuid, List<Map.Entry<UUID, Integer>> list) {
+        for (int i = 0; i < list.size(); i++) {
+            if (list.get(i).getKey().equals(uuid)) {
+                return i + 1;
+            }
+        }
+        return 0; // Unranked
     }
 }

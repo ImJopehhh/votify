@@ -2,7 +2,7 @@ name: Votify
 version: 1.0.0
 main: org.mapplestudio.votify.Votify
 api-version: 1.16
-author: MappleStudio
+author: ImJopeh
 description: A professional voter reward plugin.
 softdepend: [Votifier, PlaceholderAPI]
 
