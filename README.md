@@ -1,9 +1,6 @@
-# Votify `BETA`
+# Votify
 
 **Votify** is a high-performance, customizable voting management plugin for Minecraft servers. Developed by **ImJopeh** at **Mapple Studio**, Votify streamlines the connection between your server and voting websites, ensuring your players are rewarded instantly and your community remains engaged.
-
-> [!IMPORTANT]
-> This project is currently in its **Alpha** stage. Features are subject to change, and we actively encourage bug reports and feature suggestions via our issue tracker.
 
 ---
 
