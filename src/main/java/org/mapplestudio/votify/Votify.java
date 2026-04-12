@@ -10,6 +10,7 @@ import org.mapplestudio.votify.listeners.GuiListener;
 import org.mapplestudio.votify.listeners.JoinListener;
 import org.mapplestudio.votify.listeners.VoteListener;
 import org.mapplestudio.votify.placeholders.VotifyExpansion;
+import org.mapplestudio.votify.util.DiscordWebhookManager;
 
 import java.io.File;
 import java.io.IOException;
@@ -21,6 +22,7 @@ public final class Votify extends JavaPlugin {
     private File voteRewardsFile;
     private VoteDataHandler voteDataHandler;
     private VoteListener voteListener;
+    private DiscordWebhookManager webhookManager;
 
     @Override
     public void onEnable() {
@@ -40,6 +42,9 @@ public final class Votify extends JavaPlugin {
 
         // Data
         this.voteDataHandler = new VoteDataHandler(this);
+
+        // Discord Webhook
+        this.webhookManager = new DiscordWebhookManager(this);
 
         // Listeners
         this.voteListener = new VoteListener(this);
@@ -105,6 +110,10 @@ public final class Votify extends JavaPlugin {
 
     public VoteListener getVoteListener() {
         return voteListener;
+    }
+
+    public DiscordWebhookManager getWebhookManager() {
+        return webhookManager;
     }
 
     public static Votify getInstance() {

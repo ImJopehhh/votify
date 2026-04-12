@@ -66,6 +66,14 @@ public class VotifyAdminCommand implements CommandExecutor, TabCompleter {
                 sender.sendMessage(ChatColor.RED + "This feature is currently disabled.");
                 break;
 
+            case "webhook":
+                if (args.length < 2 || !args[1].equalsIgnoreCase("test")) {
+                    sender.sendMessage(ChatColor.RED + "Usage: /votifyadmin webhook test");
+                    return true;
+                }
+                plugin.getWebhookManager().sendTestWebhook(sender);
+                break;
+
             default:
                 sendHelpMessage(sender);
                 break;
@@ -144,6 +152,7 @@ public class VotifyAdminCommand implements CommandExecutor, TabCompleter {
         sender.sendMessage(ChatColor.translateAlternateColorCodes('&', "&e/votifyadmin testvote <player> <servicename> &7- Simulate a vote."));
         sender.sendMessage(ChatColor.translateAlternateColorCodes('&', "&e/votifyadmin topvoter <leaderboard|givereward|rewards> &7- Manage top voters."));
         sender.sendMessage(ChatColor.translateAlternateColorCodes('&', "&e/votifyadmin reload &7- Reload configuration."));
+        sender.sendMessage(ChatColor.translateAlternateColorCodes('&', "&e/votifyadmin webhook test &7- Send a test Discord webhook."));
     }
 
     @Override
@@ -155,6 +164,7 @@ public class VotifyAdminCommand implements CommandExecutor, TabCompleter {
             completions.add("testvote");
             completions.add("topvoter");
             completions.add("reload");
+            completions.add("webhook");
             return completions;
         } else if (args.length == 2) {
             if (args[0].equalsIgnoreCase("topvoter")) {
@@ -165,6 +175,10 @@ public class VotifyAdminCommand implements CommandExecutor, TabCompleter {
                 return completions;
             } else if (args[0].equalsIgnoreCase("testvote")) {
                 return null; // Return null to use default player list
+            } else if (args[0].equalsIgnoreCase("webhook")) {
+                List<String> completions = new ArrayList<>();
+                completions.add("test");
+                return completions;
             }
         }
         return Collections.emptyList();

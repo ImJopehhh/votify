@@ -10,7 +10,6 @@ import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.mapplestudio.votify.Votify;
-import org.mapplestudio.votify.util.DiscordWebhook;
 
 import java.io.File;
 import java.io.IOException;
@@ -256,8 +255,8 @@ public class VoteDataHandler {
         }
 
         // 5. Send Discord Webhook
-        if (plugin.getConfig().getBoolean("discord.enabled")) {
-            sendDiscordWebhook(topVoters, monthKey);
+        if (plugin.getConfig().getBoolean("discord.top-voter-webhook.enabled")) {
+            plugin.getWebhookManager().sendMonthlyTopVoters(topVoters, monthKey);
         }
         
         lastCacheUpdate = 0;
@@ -418,34 +417,7 @@ public class VoteDataHandler {
         return Math.min(topVoters.size(), 10);
     }
 
-    private void sendDiscordWebhook(List<Map.Entry<UUID, Integer>> topVoters, String monthName) {
-        String url = plugin.getConfig().getString("discord.webhook-url");
-        if (url == null || url.isEmpty()) return;
 
-        DiscordWebhook webhook = new DiscordWebhook(url);
-        String description = plugin.getConfig().getString("discord.top-voter-embed.description", "Top voters for %month%")
-                .replace("%month%", monthName);
-        
-        StringBuilder sb = new StringBuilder();
-        sb.append(description).append("\n\n");
-
-        for (int i = 0; i < Math.min(topVoters.size(), 10); i++) {
-            Map.Entry<UUID, Integer> entry = topVoters.get(i);
-            OfflinePlayer p = Bukkit.getOfflinePlayer(entry.getKey());
-            String name = p.getName() != null ? p.getName() : "Unknown";
-            sb.append("**").append(i + 1).append(".** ").append(name).append(" - ").append(entry.getValue()).append(" votes\n");
-        }
-
-        DiscordWebhook.EmbedObject embed = new DiscordWebhook.EmbedObject()
-                .setTitle(plugin.getConfig().getString("discord.top-voter-embed.title", "Monthly Top Voters"))
-                .setDescription(sb.toString())
-                .setColor(plugin.getConfig().getInt("discord.top-voter-embed.color", 16776960))
-                .setFooter(plugin.getConfig().getString("discord.top-voter-embed.footer", "Votify"));
-
-        webhook.addEmbed(embed);
-        
-        Bukkit.getScheduler().runTaskAsynchronously(plugin, webhook::execute);
-    }
 
     public List<Map.Entry<UUID, Integer>> getTopVoters() {
         if (System.currentTimeMillis() - lastCacheUpdate < 60000 && !cachedTopVoters.isEmpty()) {

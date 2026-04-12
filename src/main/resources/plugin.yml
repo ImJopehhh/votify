@@ -1,5 +1,5 @@
 name: Votify
-version: 1.0.0
+version: 1.0.3
 main: org.mapplestudio.votify.Votify
 api-version: 1.16
 author: ImJopeh

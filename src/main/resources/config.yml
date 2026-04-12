@@ -12,13 +12,39 @@ login-delay: 5
 
 # Discord Webhook Configuration
 discord:
-  enabled: false
-  webhook-url: "https://discord.com/api/webhooks/..."
+  # Webhook for vote notifications (sent every time someone votes)
+  vote-webhook:
+    enabled: false
+    webhook-url: "https://discord.com/api/webhooks/..."
+
+  # Webhook for monthly top voter announcement
+  top-voter-webhook:
+    enabled: false
+    webhook-url: "https://discord.com/api/webhooks/..."
+
+  # Embed settings for each vote notification
+  vote-embed:
+    title: "New Vote Received!"
+    description: "**%player%** has just voted on **%service%**! Thank you for supporting the server."
+    color: 5763719  # Green (#57F287)
+    footer-text: "Votify System"
+    footer-icon-url: ""
+    thumbnail-url: "https://mc-heads.net/avatar/%player%/128"
+    timestamp: true
+
+  # Embed settings for monthly top voter announcement
   top-voter-embed:
-    title: "🏆 Monthly Top Voters 🏆"
-    description: "Here are the top voters for the month of %month%!"
-    color: 16776960 # Yellow/Gold
-    footer: "Votify System"
+    title: "🏆 Monthly Top Voters"
+    description: "Here are the top voters for **%month%**! Thank you all for your support."
+    color: 16766720  # Gold (#FFD700)
+    footer-text: "Votify System"
+    footer-icon-url: ""
+    thumbnail-url: ""
+    image-url: ""
+
+  # Template for each player entry in the top voter list
+  # Available placeholders: %rank%, %player%, %votes%
+  top-voter-entry-format: "%rank%. **%player%** — %votes% votes"
 
 # System Data (Do not edit manually)
 data:

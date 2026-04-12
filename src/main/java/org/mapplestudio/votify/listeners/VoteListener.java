@@ -93,6 +93,9 @@ public class VoteListener implements Listener {
                 processPendingRewards(offlinePlayer.getPlayer());
             }
         });
+
+        // 4. Discord Webhook Notification
+        plugin.getWebhookManager().sendVoteNotification(playerName, serviceName);
     }
 
     private void queueRewards(OfflinePlayer offlinePlayer, String serviceName, String playerName) {
