@@ -3,6 +3,7 @@ package org.mapplestudio.votify.listeners;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Material;
+import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -198,13 +199,46 @@ public class GuiListener implements Listener {
             PlayerGui gui = (PlayerGui) holder;
 
             if (gui.getType() == PlayerGui.GuiType.MAIN) {
-                if (clickedItem.getType() == Material.PLAYER_HEAD && clickedItem.getItemMeta().getDisplayName().contains("Your Stats")) {
+                if (clickedItem.getType() == Material.BEACON) {
+                    new PlayerGui(plugin, player, PlayerGui.GuiType.SITES).open();
+                } else if (clickedItem.getType() == Material.PLAYER_HEAD && clickedItem.getItemMeta() != null && clickedItem.getItemMeta().getDisplayName().contains("Your Stats")) {
                     new PlayerGui(plugin, player, PlayerGui.GuiType.STATS).open();
                 } else if (clickedItem.getType() == Material.GOLD_INGOT) {
                     new PlayerGui(plugin, player, PlayerGui.GuiType.LEADERBOARD).open();
                 }
+            } else if (gui.getType() == PlayerGui.GuiType.SITES) {
+                if (clickedItem.getType() == Material.ARROW && clickedItem.getItemMeta() != null && clickedItem.getItemMeta().getDisplayName().contains("Back")) {
+                    new PlayerGui(plugin, player, PlayerGui.GuiType.MAIN).open();
+                    return;
+                }
+
+                ConfigurationSection sitesSec = plugin.getConfig().getConfigurationSection("vote-sites");
+                if (sitesSec != null && clickedItem.hasItemMeta() && clickedItem.getItemMeta().hasDisplayName()) {
+                    String itemName = clickedItem.getItemMeta().getDisplayName();
+                    for (String key : sitesSec.getKeys(false)) {
+                        String siteName = org.mapplestudio.votify.util.ColorUtil.colorize(sitesSec.getString(key + ".name", key));
+                        if (itemName.equals(siteName)) {
+                            String url = sitesSec.getString(key + ".url", "");
+                            player.closeInventory();
+                            player.playSound(player.getLocation(), org.bukkit.Sound.UI_BUTTON_CLICK, 1.0f, 1.0f);
+
+                            net.md_5.bungee.api.chat.TextComponent msg = new net.md_5.bungee.api.chat.TextComponent(
+                                    org.mapplestudio.votify.util.ColorUtil.colorize("&bVote link for " + siteName + "&7: "));
+                            net.md_5.bungee.api.chat.TextComponent linkBtn = new net.md_5.bungee.api.chat.TextComponent(
+                                    org.mapplestudio.votify.util.ColorUtil.colorize("&a&l[CLICK TO OPEN LINK]"));
+                            linkBtn.setClickEvent(new net.md_5.bungee.api.chat.ClickEvent(
+                                    net.md_5.bungee.api.chat.ClickEvent.Action.OPEN_URL, url));
+                            linkBtn.setHoverEvent(new net.md_5.bungee.api.chat.HoverEvent(
+                                    net.md_5.bungee.api.chat.HoverEvent.Action.SHOW_TEXT,
+                                    new net.md_5.bungee.api.chat.ComponentBuilder(org.mapplestudio.votify.util.ColorUtil.colorize("&bClick to open:\n&f" + url)).create()));
+                            msg.addExtra(linkBtn);
+                            player.spigot().sendMessage(msg);
+                            return;
+                        }
+                    }
+                }
             } else if (gui.getType() == PlayerGui.GuiType.STATS || gui.getType() == PlayerGui.GuiType.LEADERBOARD) {
-                if (clickedItem.getType() == Material.ARROW && clickedItem.getItemMeta().getDisplayName().contains("Back")) {
+                if (clickedItem.getType() == Material.ARROW && clickedItem.getItemMeta() != null && clickedItem.getItemMeta().getDisplayName().contains("Back")) {
                     new PlayerGui(plugin, player, PlayerGui.GuiType.MAIN).open();
                 }
             } else if (gui.getType() == PlayerGui.GuiType.CLAIM) {

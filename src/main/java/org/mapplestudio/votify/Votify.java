@@ -14,6 +14,7 @@ import org.mapplestudio.votify.placeholders.VotifyExpansion;
 import org.mapplestudio.votify.database.DataMigrator;
 import org.mapplestudio.votify.database.DatabaseManager;
 import org.mapplestudio.votify.util.ChatPromptManager;
+import org.mapplestudio.votify.util.VotePartyBossBar;
 
 import java.io.File;
 import java.io.IOException;
@@ -27,6 +28,7 @@ public final class Votify extends JavaPlugin {
     private VoteListener voteListener;
     private DatabaseManager databaseManager;
     private ChatPromptManager chatPromptManager;
+    private VotePartyBossBar bossBar;
 
     @Override
     public void onEnable() {
@@ -63,6 +65,9 @@ public final class Votify extends JavaPlugin {
         // Data
         this.voteDataHandler = new VoteDataHandler(this);
 
+        // Vote Party BossBar
+        this.bossBar = new VotePartyBossBar(this);
+
         // Listeners
         this.voteListener = new VoteListener(this);
         getServer().getPluginManager().registerEvents(voteListener, this);
@@ -97,6 +102,9 @@ public final class Votify extends JavaPlugin {
 
     @Override
     public void onDisable() {
+        if (bossBar != null) {
+            bossBar.cleanup();
+        }
         if (voteDataHandler != null) {
             voteDataHandler.saveVoteDataSync();
         }
@@ -149,6 +157,10 @@ public final class Votify extends JavaPlugin {
 
     public ChatPromptManager getChatPromptManager() {
         return chatPromptManager;
+    }
+
+    public VotePartyBossBar getBossBar() {
+        return bossBar;
     }
 
     public static Votify getInstance() {

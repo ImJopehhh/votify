@@ -49,3 +49,46 @@ voteparty:
     - "message: &d&lVOTE PARTY! &aYou received 5 Diamonds!"
     - "item: DIAMOND 5"
     - "command: eco give %player% 500"
+
+# Lucky Rewards (Chance-based Bonus Rewards)
+lucky-rewards:
+  enabled: true
+  tiers:
+    jackpot:
+      chance: 5.0 # 5% chance
+      broadcast: "&#f59e0b&l[LUCKY VOTE] &e%player% &7just hit the &65% Jackpot Bonus&7!"
+      rewards:
+        - "command: eco give %player% 5000"
+        - "message: &#f59e0b&l[LUCKY VOTE] &eCongratulations! You won the $5,000 Jackpot!"
+    bonus:
+      chance: 15.0 # 15% chance
+      broadcast: ""
+      rewards:
+        - "command: eco give %player% 1000"
+        - "message: &#10b981&l[LUCKY VOTE] &eYou won a $1,000 bonus cash reward!"
+
+# Vote Milestones (Cumulative Total Votes Rewards)
+milestones:
+  enabled: true
+  goals:
+    10:
+      broadcast: "&#a855f7&l[MILESTONE] &b%player% &7reached &e10 Total Votes&7!"
+      rewards:
+        - "command: give %player% diamond 5"
+        - "message: &#a855f7&l[MILESTONE] &aCongratulations on reaching 10 total votes!"
+    25:
+      broadcast: "&#a855f7&l[MILESTONE] &b%player% &7reached &e25 Total Votes&7!"
+      rewards:
+        - "command: give %player% netherite_scrap 1"
+        - "message: &#a855f7&l[MILESTONE] &aCongratulations on reaching 25 total votes!"
+    50:
+      broadcast: "&#a855f7&l[MILESTONE] &b%player% &7reached &e50 Total Votes&7!"
+      rewards:
+        - "command: give %player% netherite_ingot 1"
+        - "message: &#a855f7&l[MILESTONE] &aCongratulations on reaching 50 total votes!"
+    100:
+      broadcast: "&#eab308&l[MILESTONE] &6&l%player% &7reached an epic &e100 Total Votes&7!"
+      rewards:
+        - "command: give %player% beacon 1"
+        - "message: &#eab308&l[MILESTONE] &6&lLEGENDARY! You reached 100 total votes!"
+

@@ -52,9 +52,17 @@ public class DatabaseManager {
                         "best_weekly INT DEFAULT 0, " +
                         "wins INT DEFAULT 0, " +
                         "voteparty_contribution INT DEFAULT 0, " +
+                        "claimed_milestones TEXT DEFAULT '', " +
                         "last_vote_service VARCHAR(64), " +
                         "last_vote_time BIGINT DEFAULT 0" +
                         ");");
+
+                // Ensure claimed_milestones exists if table was created previously
+                try {
+                    stmt.execute("ALTER TABLE votify_players ADD COLUMN claimed_milestones TEXT DEFAULT '';");
+                } catch (SQLException ignored) {
+                    // Column already exists
+                }
 
                 stmt.execute("CREATE INDEX IF NOT EXISTS idx_monthly ON votify_players(monthly_votes DESC);");
                 stmt.execute("CREATE INDEX IF NOT EXISTS idx_weekly ON votify_players(weekly_votes DESC);");
@@ -509,6 +517,99 @@ public class DatabaseManager {
                 ps.executeUpdate();
             } catch (SQLException e) {
                 plugin.getLogger().severe("Error migrating player to SQLite: " + e.getMessage());
+            }
+        }
+    }
+
+    public boolean hasClaimedMilestone(UUID uuid, int milestone) {
+        synchronized (lock) {
+            String sql = "SELECT claimed_milestones FROM votify_players WHERE uuid = ?;";
+            try (PreparedStatement ps = connection.prepareStatement(sql)) {
+                ps.setString(1, uuid.toString());
+                try (ResultSet rs = ps.executeQuery()) {
+                    if (rs.next()) {
+                        String milestones = rs.getString("claimed_milestones");
+                        if (milestones != null && !milestones.isEmpty()) {
+                            String[] split = milestones.split(",");
+                            for (String s : split) {
+                                if (s.trim().equals(String.valueOf(milestone))) {
+                                    return true;
+                                }
+                            }
+                        }
+                    }
+                }
+            } catch (SQLException e) {
+                plugin.getLogger().severe("Error checking claimed milestone: " + e.getMessage());
+            }
+            return false;
+        }
+    }
+
+    public void addClaimedMilestone(UUID uuid, int milestone) {
+        synchronized (lock) {
+            String current = "";
+            String sqlSelect = "SELECT claimed_milestones FROM votify_players WHERE uuid = ?;";
+            try (PreparedStatement ps = connection.prepareStatement(sqlSelect)) {
+                ps.setString(1, uuid.toString());
+                try (ResultSet rs = ps.executeQuery()) {
+                    if (rs.next()) {
+                        current = rs.getString("claimed_milestones");
+                        if (current == null) current = "";
+                    }
+                }
+            } catch (SQLException e) {
+                plugin.getLogger().severe("Error fetching milestones: " + e.getMessage());
+            }
+
+            String updated = current.isEmpty() ? String.valueOf(milestone) : current + "," + milestone;
+            String sqlUpdate = "UPDATE votify_players SET claimed_milestones = ? WHERE uuid = ?;";
+            try (PreparedStatement ps = connection.prepareStatement(sqlUpdate)) {
+                ps.setString(1, updated);
+                ps.setString(2, uuid.toString());
+                ps.executeUpdate();
+            } catch (SQLException e) {
+                plugin.getLogger().severe("Error updating claimed milestones: " + e.getMessage());
+            }
+        }
+    }
+
+    public void setPlayerStat(UUID uuid, String stat, int value) {
+        synchronized (lock) {
+            String column;
+            switch (stat.toLowerCase()) {
+                case "monthly": column = "monthly_votes"; break;
+                case "weekly": column = "weekly_votes"; break;
+                case "total": column = "total_votes"; break;
+                case "streak": column = "streak"; break;
+                case "wins": column = "wins"; break;
+                case "voteparty-contribution": column = "voteparty_contribution"; break;
+                default:
+                    plugin.getLogger().warning("Invalid stat name to set: " + stat);
+                    return;
+            }
+
+            String sql = "INSERT INTO votify_players (uuid, " + column + ") VALUES (?, ?) " +
+                    "ON CONFLICT(uuid) DO UPDATE SET " + column + " = ?;";
+            try (PreparedStatement ps = connection.prepareStatement(sql)) {
+                ps.setString(1, uuid.toString());
+                ps.setInt(2, value);
+                ps.setInt(3, value);
+                ps.executeUpdate();
+            } catch (SQLException e) {
+                plugin.getLogger().severe("Error setting player stat: " + e.getMessage());
+            }
+        }
+    }
+
+    public void resetPlayerStats(UUID uuid) {
+        synchronized (lock) {
+            String sql = "UPDATE votify_players SET total_votes = 0, monthly_votes = 0, weekly_votes = 0, streak = 0, claimed_milestones = '' WHERE uuid = ?;";
+            try (PreparedStatement ps = connection.prepareStatement(sql)) {
+                ps.setString(1, uuid.toString());
+                ps.executeUpdate();
+            } catch (SQLException e) {
+                plugin.getLogger().severe("Error resetting player stats: " + e.getMessage());
             }
         }
     }

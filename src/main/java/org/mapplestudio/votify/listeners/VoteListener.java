@@ -14,9 +14,11 @@ import org.bukkit.event.Listener;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.mapplestudio.votify.Votify;
+import org.mapplestudio.votify.util.ColorUtil;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ThreadLocalRandom;
 
 public class VoteListener implements Listener {
 
@@ -96,7 +98,7 @@ public class VoteListener implements Listener {
                 broadcastMsg = broadcastMsg.replace("%prefix%", prefix)
                                            .replace("%player%", playerName)
                                            .replace("%service%", serviceName);
-                Bukkit.broadcastMessage(ChatColor.translateAlternateColorCodes('&', broadcastMsg));
+                Bukkit.broadcastMessage(ColorUtil.colorize(broadcastMsg));
             }
             
             // Try to process queue immediately if online
@@ -108,17 +110,18 @@ public class VoteListener implements Listener {
 
     private void queueRewards(OfflinePlayer offlinePlayer, String serviceName, String playerName) {
         ConfigurationSection rewardsConfig = plugin.getVoteRewardsConfig().getConfigurationSection("rewards");
-        if (rewardsConfig == null) return;
+        List<String> rewards = new ArrayList<>();
 
-        List<String> rewards;
-        if (rewardsConfig.contains(serviceName)) {
-            rewards = rewardsConfig.getStringList(serviceName);
-        } else {
-            String safeServiceName = serviceName.replace(".", "_");
-            if (rewardsConfig.contains(safeServiceName)) {
-                rewards = rewardsConfig.getStringList(safeServiceName);
+        if (rewardsConfig != null) {
+            if (rewardsConfig.contains(serviceName)) {
+                rewards = rewardsConfig.getStringList(serviceName);
             } else {
-                rewards = rewardsConfig.getStringList("default");
+                String safeServiceName = serviceName.replace(".", "_");
+                if (rewardsConfig.contains(safeServiceName)) {
+                    rewards = rewardsConfig.getStringList(safeServiceName);
+                } else {
+                    rewards = rewardsConfig.getStringList("default");
+                }
             }
         }
 
@@ -126,6 +129,55 @@ public class VoteListener implements Listener {
         for (String rewardString : rewards) {
             queuedRewards.add(rewardString.replace("%player%", playerName));
         }
+
+        // 1. Lucky Vote Engine (Chance-based rewards)
+        if (plugin.getVoteRewardsConfig().getBoolean("lucky-rewards.enabled", false)) {
+            ConfigurationSection tiers = plugin.getVoteRewardsConfig().getConfigurationSection("lucky-rewards.tiers");
+            if (tiers != null) {
+                double roll = ThreadLocalRandom.current().nextDouble() * 100.0;
+                for (String tierKey : tiers.getKeys(false)) {
+                    double chance = tiers.getDouble(tierKey + ".chance", 0.0);
+                    if (roll <= chance) {
+                        List<String> luckyRewards = tiers.getStringList(tierKey + ".rewards");
+                        for (String r : luckyRewards) {
+                            queuedRewards.add(r.replace("%player%", playerName));
+                        }
+                        String broadcast = tiers.getString(tierKey + ".broadcast", "");
+                        if (broadcast != null && !broadcast.isEmpty()) {
+                            String finalBcast = ColorUtil.colorize(broadcast.replace("%player%", playerName));
+                            Bukkit.getScheduler().runTask(plugin, () -> Bukkit.broadcastMessage(finalBcast));
+                        }
+                        break; // Award one lucky tier per roll
+                    }
+                }
+            }
+        }
+
+        // 2. Vote Milestones Engine (Cumulative Total Votes Rewards)
+        if (plugin.getVoteRewardsConfig().getBoolean("milestones.enabled", false)) {
+            ConfigurationSection goals = plugin.getVoteRewardsConfig().getConfigurationSection("milestones.goals");
+            if (goals != null) {
+                int totalVotes = plugin.getVoteDataHandler().getPlayerStat(offlinePlayer.getUniqueId(), "total");
+                for (String goalStr : goals.getKeys(false)) {
+                    try {
+                        int goal = Integer.parseInt(goalStr);
+                        if (totalVotes >= goal && !plugin.getVoteDataHandler().hasClaimedMilestone(offlinePlayer.getUniqueId(), goal)) {
+                            plugin.getVoteDataHandler().addClaimedMilestone(offlinePlayer.getUniqueId(), goal);
+                            List<String> milestoneRewards = goals.getStringList(goalStr + ".rewards");
+                            for (String r : milestoneRewards) {
+                                queuedRewards.add(r.replace("%player%", playerName));
+                            }
+                            String broadcast = goals.getString(goalStr + ".broadcast", "");
+                            if (broadcast != null && !broadcast.isEmpty()) {
+                                String finalBcast = ColorUtil.colorize(broadcast.replace("%player%", playerName));
+                                Bukkit.getScheduler().runTask(plugin, () -> Bukkit.broadcastMessage(finalBcast));
+                            }
+                        }
+                    } catch (NumberFormatException ignored) {}
+                }
+            }
+        }
+
         plugin.getVoteDataHandler().addPendingRewards(offlinePlayer.getUniqueId(), queuedRewards);
     }
 
@@ -153,7 +205,7 @@ public class VoteListener implements Listener {
             case "message":
                 String prefix = plugin.getConfig().getString("messages.prefix", "&8[&bVotify&8] &r");
                 value = value.replace("%prefix%", prefix);
-                player.sendMessage(ChatColor.translateAlternateColorCodes('&', value));
+                player.sendMessage(ColorUtil.colorize(value));
                 break;
             case "item":
                 giveItem(player, value);
@@ -193,12 +245,12 @@ public class VoteListener implements Listener {
                 String lowerArg = arg.toLowerCase();
                 if (lowerArg.startsWith("name:")) {
                     String displayName = arg.substring(5).replace("_", " ");
-                    meta.setDisplayName(ChatColor.translateAlternateColorCodes('&', displayName));
+                    meta.setDisplayName(ColorUtil.colorize(displayName));
                 } else if (lowerArg.startsWith("lore:")) {
                     String[] loreLines = arg.substring(5).split("\\|");
                     List<String> lore = new ArrayList<>();
                     for (String line : loreLines) {
-                        lore.add(ChatColor.translateAlternateColorCodes('&', line.replace("_", " ")));
+                        lore.add(ColorUtil.colorize(line.replace("_", " ")));
                     }
                     meta.setLore(lore);
                 } else if (lowerArg.startsWith("enchant:")) {

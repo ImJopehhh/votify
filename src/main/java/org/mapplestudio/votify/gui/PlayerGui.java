@@ -4,6 +4,7 @@ import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Material;
 import org.bukkit.OfflinePlayer;
+import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.InventoryHolder;
@@ -11,6 +12,7 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.inventory.meta.SkullMeta;
 import org.mapplestudio.votify.Votify;
+import org.mapplestudio.votify.util.ColorUtil;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -25,7 +27,7 @@ public class PlayerGui implements InventoryHolder {
     private final GuiType type;
 
     public enum GuiType {
-        MAIN, STATS, LEADERBOARD, CLAIM
+        MAIN, STATS, LEADERBOARD, CLAIM, SITES
     }
 
     public PlayerGui(Votify plugin, Player viewer, GuiType type) {
@@ -39,10 +41,11 @@ public class PlayerGui implements InventoryHolder {
 
     private String getTitle(GuiType type) {
         switch (type) {
-            case STATS: return ChatColor.DARK_AQUA + "Your Statistics";
-            case LEADERBOARD: return ChatColor.GOLD + "Top Voters (Monthly)";
-            case CLAIM: return ChatColor.GREEN + "Claim Reward";
-            default: return ChatColor.BLUE + "Votify Menu";
+            case SITES: return ColorUtil.colorize("&2&lVote Sites");
+            case STATS: return ColorUtil.colorize("&3&lYour Statistics");
+            case LEADERBOARD: return ColorUtil.colorize("&6&lTop Voters (Monthly)");
+            case CLAIM: return ColorUtil.colorize("&a&lClaim Reward");
+            default: return ColorUtil.colorize("&9&lVotify Menu");
         }
     }
 
@@ -61,13 +64,41 @@ public class PlayerGui implements InventoryHolder {
         }
 
         if (type == GuiType.MAIN) {
-            // Stats Button
-            inv.setItem(11, createHeadItem(viewer, "&b&lYour Stats", 
-                    "&7Click to view your", "&7voting statistics."));
+            // Vote Sites Button (Slot 11)
+            inv.setItem(11, createGuiItem(Material.BEACON, "&a&lVote Sites", 
+                    "&7Click to view voting links", 
+                    "&7and open in browser."));
 
-            // Leaderboard Button
+            // Stats Button (Slot 13)
+            inv.setItem(13, createHeadItem(viewer, "&b&lYour Stats", 
+                    "&7Click to view your", 
+                    "&7voting statistics."));
+
+            // Leaderboard Button (Slot 15)
             inv.setItem(15, createGuiItem(Material.GOLD_INGOT, "&6&lLeaderboard", 
-                    "&7Click to view the", "&7monthly top voters."));
+                    "&7Click to view the", 
+                    "&7monthly top voters."));
+
+        } else if (type == GuiType.SITES) {
+            ConfigurationSection sitesSec = plugin.getConfig().getConfigurationSection("vote-sites");
+            if (sitesSec != null) {
+                int[] slots = {11, 13, 15, 10, 12, 14, 16};
+                int idx = 0;
+                for (String key : sitesSec.getKeys(false)) {
+                    if (idx >= slots.length) break;
+                    String name = sitesSec.getString(key + ".name", key);
+                    String matName = sitesSec.getString(key + ".material", "PAPER");
+                    Material mat = Material.matchMaterial(matName.toUpperCase());
+                    if (mat == null) mat = Material.PAPER;
+                    List<String> lore = sitesSec.getStringList(key + ".description");
+                    if (lore.isEmpty()) {
+                        lore = new ArrayList<>();
+                        lore.add("&7Click to open vote link!");
+                    }
+                    inv.setItem(slots[idx++], createGuiItem(mat, name, lore.toArray(new String[0])));
+                }
+            }
+            inv.setItem(22, createGuiItem(Material.ARROW, "&cBack", "&7Return to main menu"));
 
         } else if (type == GuiType.STATS) {
             int total = plugin.getVoteDataHandler().getPlayerStat(viewer.getUniqueId(), "total");
@@ -97,8 +128,6 @@ public class PlayerGui implements InventoryHolder {
             List<Map.Entry<UUID, Integer>> topVoters = plugin.getVoteDataHandler().getTopVoters();
             
             // Display Top 10 in a clean podium layout
-            // Rank 1 at slot 13, Rank 2 at slot 11, Rank 3 at slot 15
-            // Ranks 4-10 across row 4 (slots 28 to 34)
             int[] slots = {13, 11, 15, 28, 29, 30, 31, 32, 33, 34};
             
             for (int i = 0; i < Math.min(topVoters.size(), slots.length); i++) {
@@ -139,27 +168,31 @@ public class PlayerGui implements InventoryHolder {
     private ItemStack createGuiItem(Material material, String name, String... lore) {
         ItemStack item = new ItemStack(material, 1);
         ItemMeta meta = item.getItemMeta();
-        meta.setDisplayName(ChatColor.translateAlternateColorCodes('&', name));
-        List<String> loreList = new ArrayList<>();
-        for (String line : lore) {
-            loreList.add(ChatColor.translateAlternateColorCodes('&', line));
+        if (meta != null) {
+            meta.setDisplayName(ColorUtil.colorize(name));
+            List<String> loreList = new ArrayList<>();
+            for (String line : lore) {
+                loreList.add(ColorUtil.colorize(line));
+            }
+            meta.setLore(loreList);
+            item.setItemMeta(meta);
         }
-        meta.setLore(loreList);
-        item.setItemMeta(meta);
         return item;
     }
 
     private ItemStack createHeadItem(OfflinePlayer player, String name, String... lore) {
         ItemStack item = new ItemStack(Material.PLAYER_HEAD, 1);
         SkullMeta meta = (SkullMeta) item.getItemMeta();
-        meta.setOwningPlayer(player);
-        meta.setDisplayName(ChatColor.translateAlternateColorCodes('&', name));
-        List<String> loreList = new ArrayList<>();
-        for (String line : lore) {
-            loreList.add(ChatColor.translateAlternateColorCodes('&', line));
+        if (meta != null) {
+            meta.setOwningPlayer(player);
+            meta.setDisplayName(ColorUtil.colorize(name));
+            List<String> loreList = new ArrayList<>();
+            for (String line : lore) {
+                loreList.add(ColorUtil.colorize(line));
+            }
+            meta.setLore(loreList);
+            item.setItemMeta(meta);
         }
-        meta.setLore(loreList);
-        item.setItemMeta(meta);
         return item;
     }
 

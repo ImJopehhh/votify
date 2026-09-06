@@ -2,14 +2,22 @@ package org.mapplestudio.votify.data;
 
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
+import org.bukkit.Color;
+import org.bukkit.FireworkEffect;
+import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.OfflinePlayer;
+import org.bukkit.Sound;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
+import org.bukkit.entity.EntityType;
+import org.bukkit.entity.Firework;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.FireworkMeta;
 import org.mapplestudio.votify.Votify;
+import org.mapplestudio.votify.util.ColorUtil;
 import org.mapplestudio.votify.util.DiscordWebhook;
 
 import java.io.File;
@@ -162,7 +170,10 @@ public class VoteDataHandler {
                         if (progressMsg != null && !progressMsg.isEmpty()) {
                             progressMsg = progressMsg.replace("%current_votes%", String.valueOf(currentPartyVotes))
                                                      .replace("%required_votes%", String.valueOf(requiredVotes));
-                            Bukkit.broadcastMessage(ChatColor.translateAlternateColorCodes('&', progressMsg));
+                            Bukkit.broadcastMessage(ColorUtil.colorize(progressMsg));
+                        }
+                        if (plugin.getBossBar() != null) {
+                            plugin.getBossBar().update(currentPartyVotes, requiredVotes);
                         }
                     }
                 }
@@ -217,7 +228,10 @@ public class VoteDataHandler {
                     if (progressMsg != null && !progressMsg.isEmpty()) {
                         progressMsg = progressMsg.replace("%current_votes%", String.valueOf(currentPartyVotes))
                                                  .replace("%required_votes%", String.valueOf(requiredVotes));
-                        Bukkit.broadcastMessage(ChatColor.translateAlternateColorCodes('&', progressMsg));
+                        Bukkit.broadcastMessage(ColorUtil.colorize(progressMsg));
+                    }
+                    if (plugin.getBossBar() != null) {
+                        plugin.getBossBar().update(currentPartyVotes, requiredVotes);
                     }
                 }
             }
@@ -227,19 +241,150 @@ public class VoteDataHandler {
         saveVoteData();
     }
 
-    private void triggerVoteParty() {
+    public void triggerVoteParty() {
         List<String> messages = plugin.getConfig().getStringList("messages.voteparty.reached");
         for (String msg : messages) {
-            Bukkit.broadcastMessage(ChatColor.translateAlternateColorCodes('&', msg));
+            Bukkit.broadcastMessage(ColorUtil.colorize(msg));
         }
 
         List<String> rewards = plugin.getVoteRewardsConfig().getStringList("voteparty.rewards");
         for (Player player : Bukkit.getOnlinePlayers()) {
             for (String reward : rewards) {
                 String finalReward = reward.replace("%player%", player.getName());
-                // Execute immediately for online players
                 plugin.getVoteListener().processRewardString(player, finalReward);
             }
+
+            // Visual Celebration Effects
+            try {
+                Location loc = player.getLocation();
+                Firework fw = player.getWorld().spawn(loc, Firework.class);
+                FireworkMeta fwm = fw.getFireworkMeta();
+                fwm.setPower(1);
+                fwm.addEffect(FireworkEffect.builder()
+                        .with(FireworkEffect.Type.BALL_LARGE)
+                        .withColor(Color.FUCHSIA, Color.AQUA, Color.YELLOW)
+                        .withFade(Color.WHITE)
+                        .withFlicker()
+                        .withTrail()
+                        .build());
+                fw.setFireworkMeta(fwm);
+
+                player.playSound(loc, Sound.UI_TOAST_CHALLENGE_COMPLETE, 1.0f, 1.0f);
+                player.playSound(loc, Sound.ENTITY_PLAYER_LEVELUP, 1.0f, 1.2f);
+                player.sendTitle(
+                        ColorUtil.colorize("&d&lVOTE PARTY!"),
+                        ColorUtil.colorize("&fThe server vote goal has been reached!"),
+                        10, 70, 20
+                );
+            } catch (Exception ignored) {}
+        }
+
+        if (plugin.getBossBar() != null) {
+            plugin.getBossBar().update(0, getVotePartyRequired());
+        }
+    }
+
+    public int getVotePartyCurrent() {
+        if (isSqlite()) {
+            return plugin.getDatabaseManager().getMetaInt("voteparty_current", 0);
+        } else {
+            return getVoteData().getInt("voteparty.current", 0);
+        }
+    }
+
+    public int getVotePartyRequired() {
+        return plugin.getVoteRewardsConfig().getInt("voteparty.votes-required", 50);
+    }
+
+    public void addVotePartyVotes(int amount) {
+        int required = getVotePartyRequired();
+        int current = getVotePartyCurrent() + amount;
+        if (current >= required) {
+            resetVoteParty();
+            Bukkit.getScheduler().runTask(plugin, this::triggerVoteParty);
+        } else {
+            if (isSqlite()) {
+                plugin.getDatabaseManager().setMetaInt("voteparty_current", current);
+            } else {
+                synchronized (lock) {
+                    getVoteData().set("voteparty.current", current);
+                }
+                saveVoteData();
+            }
+            if (plugin.getBossBar() != null) {
+                plugin.getBossBar().update(current, required);
+            }
+        }
+    }
+
+    public void resetVoteParty() {
+        if (isSqlite()) {
+            plugin.getDatabaseManager().setMetaInt("voteparty_current", 0);
+        } else {
+            synchronized (lock) {
+                getVoteData().set("voteparty.current", 0);
+            }
+            saveVoteData();
+        }
+        if (plugin.getBossBar() != null) {
+            plugin.getBossBar().update(0, getVotePartyRequired());
+        }
+    }
+
+    public void setPlayerVotes(UUID uuid, String stat, int amount) {
+        if (isSqlite()) {
+            plugin.getDatabaseManager().setPlayerStat(uuid, stat, amount);
+        } else {
+            synchronized (lock) {
+                String path = "players." + uuid.toString() + "." + stat.toLowerCase();
+                getVoteData().set(path, amount);
+            }
+            saveVoteData();
+        }
+        lastCacheUpdate = 0;
+    }
+
+    public void resetPlayerData(UUID uuid) {
+        if (isSqlite()) {
+            plugin.getDatabaseManager().resetPlayerStats(uuid);
+        } else {
+            synchronized (lock) {
+                String path = "players." + uuid.toString();
+                getVoteData().set(path + ".total", 0);
+                getVoteData().set(path + ".monthly", 0);
+                getVoteData().set(path + ".weekly", 0);
+                getVoteData().set(path + ".streak", 0);
+                getVoteData().set(path + ".claimed-milestones", new ArrayList<String>());
+            }
+            saveVoteData();
+        }
+        lastCacheUpdate = 0;
+    }
+
+    public boolean hasClaimedMilestone(UUID uuid, int milestone) {
+        if (isSqlite()) {
+            return plugin.getDatabaseManager().hasClaimedMilestone(uuid, milestone);
+        } else {
+            synchronized (lock) {
+                List<String> list = getVoteData().getStringList("players." + uuid.toString() + ".claimed-milestones");
+                return list.contains(String.valueOf(milestone));
+            }
+        }
+    }
+
+    public void addClaimedMilestone(UUID uuid, int milestone) {
+        if (isSqlite()) {
+            plugin.getDatabaseManager().addClaimedMilestone(uuid, milestone);
+        } else {
+            synchronized (lock) {
+                String path = "players." + uuid.toString() + ".claimed-milestones";
+                List<String> list = getVoteData().getStringList(path);
+                if (!list.contains(String.valueOf(milestone))) {
+                    list.add(String.valueOf(milestone));
+                    getVoteData().set(path, list);
+                }
+            }
+            saveVoteData();
         }
     }
 

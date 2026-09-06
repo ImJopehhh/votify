@@ -50,3 +50,43 @@ messages:
       - "&d&lVOTE PARTY!"
       - "&7The vote goal has been reached! Everyone online receives a reward!"
       - ""
+
+# Voting Websites Configuration
+# These are displayed in /vote and /vote sites
+vote-sites:
+  planetminecraft:
+    name: "&#38bdf8PlanetMinecraft"
+    material: "DIAMOND"
+    url: "https://www.planetminecraft.com/server/your-server/vote/"
+    description:
+      - "&7Vote every 24 hours"
+      - "&aReward: &f1x Vote Key &7+ &e$500"
+      - ""
+      - "&eClick to get link in chat!"
+  topg:
+    name: "&#f59e0bTopG"
+    material: "GOLD_INGOT"
+    url: "https://topg.org/minecraft-servers/server-12345"
+    description:
+      - "&7Vote every 24 hours"
+      - "&aReward: &f1x Vote Key &7+ &e$500"
+      - ""
+      - "&eClick to get link in chat!"
+  minecraft-mp:
+    name: "&#10b981Minecraft-MP"
+    material: "EMERALD"
+    url: "https://minecraft-mp.com/server/12345/vote/"
+    description:
+      - "&7Vote every 24 hours"
+      - "&aReward: &f1x Vote Key &7+ &e$500"
+      - ""
+      - "&eClick to get link in chat!"
+
+# Vote Party BossBar Settings
+voteparty:
+  bossbar:
+    enabled: false
+    title: "&#d946ef&lVOTE PARTY: &e%current%&7/&6%required% votes &8(&b%percent%%&8)"
+    color: "PURPLE"
+    style: "SOLID"
+

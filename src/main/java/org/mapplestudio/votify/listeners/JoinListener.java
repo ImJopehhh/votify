@@ -5,7 +5,9 @@ import org.bukkit.ChatColor;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerJoinEvent;
+import org.bukkit.event.player.PlayerQuitEvent;
 import org.mapplestudio.votify.Votify;
+import org.mapplestudio.votify.util.ColorUtil;
 
 public class JoinListener implements Listener {
 
@@ -17,6 +19,11 @@ public class JoinListener implements Listener {
 
     @EventHandler
     public void onPlayerJoin(PlayerJoinEvent event) {
+        // Add to BossBar
+        if (plugin.getBossBar() != null) {
+            plugin.getBossBar().addPlayer(event.getPlayer());
+        }
+
         int delay = plugin.getConfig().getInt("login-delay", 5);
 
         Bukkit.getScheduler().runTaskLater(plugin, () -> {
@@ -28,11 +35,18 @@ public class JoinListener implements Listener {
                 int rank = plugin.getVoteDataHandler().getUnclaimedRewardRank(event.getPlayer().getUniqueId());
                 if (rank != -1) {
                     String prefix = plugin.getConfig().getString("messages.prefix", "&8[&bVotify&8] &r");
-                    event.getPlayer().sendMessage(ChatColor.translateAlternateColorCodes('&', prefix + "&aYou have an unclaimed Top Voter reward!"));
-                    event.getPlayer().sendMessage(ChatColor.translateAlternateColorCodes('&', prefix + "&eYou were ranked #" + rank + " last month."));
-                    event.getPlayer().sendMessage(ChatColor.translateAlternateColorCodes('&', prefix + "&bType &n/votify claim&b to claim it now!"));
+                    event.getPlayer().sendMessage(ColorUtil.colorize(prefix + "&aYou have an unclaimed Top Voter reward!"));
+                    event.getPlayer().sendMessage(ColorUtil.colorize(prefix + "&eYou were ranked #" + rank + " last month."));
+                    event.getPlayer().sendMessage(ColorUtil.colorize(prefix + "&bType &n/votify claim&b to claim it now!"));
                 }
             }
         }, delay * 20L); // Convert seconds to ticks
+    }
+
+    @EventHandler
+    public void onPlayerQuit(PlayerQuitEvent event) {
+        if (plugin.getBossBar() != null) {
+            plugin.getBossBar().removePlayer(event.getPlayer());
+        }
     }
 }
