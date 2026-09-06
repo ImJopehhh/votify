@@ -52,9 +52,20 @@ public class VotifyCommand implements CommandExecutor, TabCompleter {
                 sender.sendMessage(ChatColor.RED + "This command can only be used by players.");
             }
             return true;
-        } else if (subCommand.equals("leaderboard") || subCommand.equals("topvoter")) {
+        } else if (subCommand.equals("leaderboard") || subCommand.equals("topvoter") || subCommand.equals("top")) {
             if (sender instanceof Player) {
-                new PlayerGui(plugin, (Player) sender, PlayerGui.GuiType.LEADERBOARD).open();
+                Player player = (Player) sender;
+                new PlayerGui(plugin, player, PlayerGui.GuiType.LEADERBOARD).open();
+                sendLeaderboardInChat(player);
+            } else {
+                sender.sendMessage(ChatColor.RED + "This command can only be used by players.");
+            }
+            return true;
+        } else if (subCommand.equals("info") || subCommand.equals("stats") || subCommand.equals("stat") || subCommand.equals("me")) {
+            if (sender instanceof Player) {
+                Player player = (Player) sender;
+                new PlayerGui(plugin, player, PlayerGui.GuiType.STATS).open();
+                sendPlayerStatsInChat(player);
             } else {
                 sender.sendMessage(ChatColor.RED + "This command can only be used by players.");
             }
@@ -75,6 +86,37 @@ public class VotifyCommand implements CommandExecutor, TabCompleter {
             sendHelpMessage(sender);
         }
         return true;
+    }
+
+    public void sendLeaderboardInChat(Player player) {
+        List<java.util.Map.Entry<java.util.UUID, Integer>> topVoters = plugin.getVoteDataHandler().getTopVoters();
+        player.sendMessage(ColorUtil.colorize("&8&m----------------------------------------"));
+        player.sendMessage(ColorUtil.colorize("&6&l★ Top Voters (Monthly Leaderboard) ★"));
+        if (topVoters == null || topVoters.isEmpty()) {
+            player.sendMessage(ColorUtil.colorize("&7No votes registered yet this month."));
+        } else {
+            int max = Math.min(topVoters.size(), 5);
+            for (int i = 0; i < max; i++) {
+                java.util.Map.Entry<java.util.UUID, Integer> entry = topVoters.get(i);
+                org.bukkit.OfflinePlayer op = org.bukkit.Bukkit.getOfflinePlayer(entry.getKey());
+                String name = op.getName() != null ? op.getName() : "Unknown";
+                player.sendMessage(ColorUtil.colorize("&e#" + (i + 1) + " &b" + name + " &7- &f" + entry.getValue() + " votes"));
+            }
+        }
+        player.sendMessage(ColorUtil.colorize("&8&m----------------------------------------"));
+    }
+
+    public void sendPlayerStatsInChat(Player player) {
+        int total = plugin.getVoteDataHandler().getPlayerStat(player.getUniqueId(), "total");
+        int monthly = plugin.getVoteDataHandler().getPlayerStat(player.getUniqueId(), "monthly");
+        int streak = plugin.getVoteDataHandler().getPlayerStat(player.getUniqueId(), "streak");
+
+        player.sendMessage(ColorUtil.colorize("&8&m----------------------------------------"));
+        player.sendMessage(ColorUtil.colorize("&b&lYour Vote Statistics &8(&f" + player.getName() + "&8)"));
+        player.sendMessage(ColorUtil.colorize("&7Total Votes: &e" + total));
+        player.sendMessage(ColorUtil.colorize("&7Monthly Votes: &a" + monthly));
+        player.sendMessage(ColorUtil.colorize("&7Current Streak: &d" + streak + " days"));
+        player.sendMessage(ColorUtil.colorize("&8&m----------------------------------------"));
     }
 
     public void sendSitesInChat(Player player) {
@@ -111,7 +153,8 @@ public class VotifyCommand implements CommandExecutor, TabCompleter {
         sender.sendMessage(ColorUtil.colorize(prefix + "&bVotify Commands:"));
         sender.sendMessage(ColorUtil.colorize("&e/votify &7- Open the Vote Menu."));
         sender.sendMessage(ColorUtil.colorize("&e/votify sites &7- View voting websites & links."));
-        sender.sendMessage(ColorUtil.colorize("&e/votify leaderboard &7- Open the Top Voter Leaderboard."));
+        sender.sendMessage(ColorUtil.colorize("&e/votify top &7- View Top Voter Leaderboard."));
+        sender.sendMessage(ColorUtil.colorize("&e/votify stats &7- View your vote statistics."));
         sender.sendMessage(ColorUtil.colorize("&e/votify claim &7- Claim Top Voter Rewards."));
     }
 
@@ -123,7 +166,9 @@ public class VotifyCommand implements CommandExecutor, TabCompleter {
             completions.add("sites");
             completions.add("links");
             completions.add("leaderboard");
-            completions.add("topvoter");
+            completions.add("top");
+            completions.add("info");
+            completions.add("stats");
             completions.add("claim");
             return completions;
         }

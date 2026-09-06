@@ -85,7 +85,7 @@ vote-sites:
 # Vote Party BossBar Settings
 voteparty:
   bossbar:
-    enabled: false
+    enabled: true
     title: "&#d946ef&lVOTE PARTY: &e%current%&7/&6%required% votes &8(&b%percent%%&8)"
     color: "PURPLE"
     style: "SOLID"
