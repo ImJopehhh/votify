@@ -14,6 +14,8 @@ import org.mapplestudio.votify.util.DiscordWebhook;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
@@ -30,9 +32,14 @@ public class VoteDataHandler {
     private List<Map.Entry<UUID, Integer>> cachedTopVoters = new ArrayList<>();
     private long lastCacheUpdate = 0;
 
+    // Async save queue / debouncing state
+    private boolean isSaving = false;
+    private boolean hasPendingSave = false;
+
     public VoteDataHandler(Votify plugin) {
         this.plugin = plugin;
         setup();
+        cleanLegacyRootKeys();
         checkMonthlyReset();
         checkWeeklyReset();
     }
@@ -42,29 +49,89 @@ public class VoteDataHandler {
         if (!voteDataFile.exists()) {
             plugin.saveResource("votedata.yml", false);
         }
-        voteDataConfig = YamlConfiguration.loadConfiguration(voteDataFile);
+        synchronized (lock) {
+            voteDataConfig = YamlConfiguration.loadConfiguration(voteDataFile);
+        }
     }
 
     public FileConfiguration getVoteData() {
-        return voteDataConfig;
+        synchronized (lock) {
+            return voteDataConfig;
+        }
+    }
+
+    public void cleanLegacyRootKeys() {
+        synchronized (lock) {
+            boolean modified = false;
+            for (String key : new HashSet<>(voteDataConfig.getKeys(false))) {
+                if (key.equals("players") || key.equals("queue") || key.equals("history") 
+                        || key.equals("unclaimed_rewards") || key.equals("voteparty")) {
+                    continue;
+                }
+                try {
+                    UUID.fromString(key);
+                    voteDataConfig.set(key, null);
+                    modified = true;
+                } catch (IllegalArgumentException ignored) {}
+            }
+            if (modified) {
+                saveVoteDataSync();
+            }
+        }
     }
 
     public void saveVoteData() {
-        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
-            synchronized (lock) {
+        synchronized (lock) {
+            if (isSaving) {
+                hasPendingSave = true;
+                return;
+            }
+            isSaving = true;
+        }
+        Bukkit.getScheduler().runTaskAsynchronously(plugin, this::performSave);
+    }
+
+    private void performSave() {
+        synchronized (lock) {
+            try {
+                File tempFile = new File(voteDataFile.getParentFile(), voteDataFile.getName() + ".tmp");
+                voteDataConfig.save(tempFile);
                 try {
-                    voteDataConfig.save(voteDataFile);
-                } catch (IOException e) {
-                    plugin.getLogger().severe("Could not save votedata.yml!");
-                    e.printStackTrace();
+                    Files.move(tempFile.toPath(), voteDataFile.toPath(),
+                            StandardCopyOption.REPLACE_EXISTING,
+                            StandardCopyOption.ATOMIC_MOVE);
+                } catch (Exception atomicEx) {
+                    Files.move(tempFile.toPath(), voteDataFile.toPath(),
+                            StandardCopyOption.REPLACE_EXISTING);
+                }
+            } catch (IOException e) {
+                plugin.getLogger().severe("Could not save votedata.yml!");
+                e.printStackTrace();
+            } finally {
+                isSaving = false;
+                if (hasPendingSave) {
+                    hasPendingSave = false;
+                    saveVoteData();
                 }
             }
-        });
+        }
+    }
+
+    public void saveVoteDataSync() {
+        synchronized (lock) {
+            try {
+                voteDataConfig.save(voteDataFile);
+            } catch (IOException e) {
+                plugin.getLogger().severe("Could not save votedata.yml synchronously!");
+                e.printStackTrace();
+            }
+        }
     }
 
     public void reloadVoteData() {
         synchronized (lock) {
             voteDataConfig = YamlConfiguration.loadConfiguration(voteDataFile);
+            lastCacheUpdate = 0;
         }
     }
 
@@ -143,9 +210,24 @@ public class VoteDataHandler {
     }
 
     public void addPendingReward(UUID playerUUID, String rewardString) {
+        addPendingReward(playerUUID, rewardString, true);
+    }
+
+    public void addPendingReward(UUID playerUUID, String rewardString, boolean saveImmediately) {
         synchronized (lock) {
             List<String> pending = getVoteData().getStringList("queue." + playerUUID.toString());
             pending.add(rewardString);
+            getVoteData().set("queue." + playerUUID.toString(), pending);
+        }
+        if (saveImmediately) {
+            saveVoteData();
+        }
+    }
+
+    public void addPendingRewards(UUID playerUUID, List<String> rewardStrings) {
+        synchronized (lock) {
+            List<String> pending = getVoteData().getStringList("queue." + playerUUID.toString());
+            pending.addAll(rewardStrings);
             getVoteData().set("queue." + playerUUID.toString(), pending);
         }
         saveVoteData();
@@ -164,33 +246,35 @@ public class VoteDataHandler {
         saveVoteData();
     }
 
-    private void checkMonthlyReset() {
-        int currentMonth = LocalDate.now().getMonthValue();
-        int lastMonth = plugin.getConfig().getInt("data.last-month", -1);
+    public void checkMonthlyReset() {
+        synchronized (lock) {
+            int currentMonth = LocalDate.now().getMonthValue();
+            int lastMonth = plugin.getConfig().getInt("data.last-month", -1);
 
-        if (lastMonth != -1 && lastMonth != currentMonth) {
-            processMonthlyReset(lastMonth);
-        }
+            if (lastMonth != -1 && lastMonth != currentMonth) {
+                processMonthlyReset(lastMonth);
+            }
 
-        if (lastMonth != currentMonth) {
-            plugin.getConfig().set("data.last-month", currentMonth);
-            plugin.saveConfig();
+            if (lastMonth != currentMonth) {
+                plugin.getConfig().set("data.last-month", currentMonth);
+                plugin.saveConfig();
+            }
         }
     }
     
-    private void checkWeeklyReset() {
-        // Simple week check using Calendar week or just day of year / 7
-        // Better: Use ISO week number
-        int currentWeek = Calendar.getInstance().get(Calendar.WEEK_OF_YEAR);
-        int lastWeek = plugin.getConfig().getInt("data.last-week", -1);
-        
-        if (lastWeek != -1 && lastWeek != currentWeek) {
-            processWeeklyReset();
-        }
-        
-        if (lastWeek != currentWeek) {
-            plugin.getConfig().set("data.last-week", currentWeek);
-            plugin.saveConfig();
+    public void checkWeeklyReset() {
+        synchronized (lock) {
+            int currentWeek = Calendar.getInstance().get(Calendar.WEEK_OF_YEAR);
+            int lastWeek = plugin.getConfig().getInt("data.last-week", -1);
+            
+            if (lastWeek != -1 && lastWeek != currentWeek) {
+                processWeeklyReset();
+            }
+            
+            if (lastWeek != currentWeek) {
+                plugin.getConfig().set("data.last-week", currentWeek);
+                plugin.saveConfig();
+            }
         }
     }
 
@@ -205,6 +289,15 @@ public class VoteDataHandler {
         storeUnclaimedRewards(topVoters, monthKey);
 
         // 3. Save History & Update Streaks
+        int totalMonthlyServerVotes = 0;
+        ConfigurationSection players = getVoteData().getConfigurationSection("players");
+        if (players != null) {
+            for (String uuid : players.getKeys(false)) {
+                totalMonthlyServerVotes += players.getInt(uuid + ".monthly", 0);
+            }
+        }
+        getVoteData().set("history." + monthKey + ".total_server_votes", totalMonthlyServerVotes);
+
         for (int i = 0; i < Math.min(topVoters.size(), 10); i++) {
             Map.Entry<UUID, Integer> entry = topVoters.get(i);
             String path = "history." + monthKey + "." + (i + 1);
@@ -219,7 +312,6 @@ public class VoteDataHandler {
         }
         
         // Update Streaks for all players who voted this month
-        ConfigurationSection players = getVoteData().getConfigurationSection("players");
         if (players != null) {
             for (String uuid : players.getKeys(false)) {
                 int monthly = players.getInt(uuid + ".monthly", 0);
@@ -227,18 +319,18 @@ public class VoteDataHandler {
                 
                 if (monthly > 0) {
                     currentStreak++;
-                    getVoteData().set(uuid + ".streak", currentStreak);
+                    getVoteData().set("players." + uuid + ".streak", currentStreak);
                     
                     int bestStreak = players.getInt(uuid + ".best-streak", 0);
                     if (currentStreak > bestStreak) {
-                        getVoteData().set(uuid + ".best-streak", currentStreak);
+                        getVoteData().set("players." + uuid + ".best-streak", currentStreak);
                     }
                 } else {
-                    getVoteData().set(uuid + ".streak", 0);
+                    getVoteData().set("players." + uuid + ".streak", 0);
                 }
                 
-                // Reset Monthly
-                getVoteData().set(uuid + ".monthly", 0);
+                // Reset Monthly properly under players.<uuid>.monthly
+                getVoteData().set("players." + uuid + ".monthly", 0);
             }
         }
 
@@ -269,7 +361,7 @@ public class VoteDataHandler {
         ConfigurationSection players = getVoteData().getConfigurationSection("players");
         if (players != null) {
             for (String uuid : players.getKeys(false)) {
-                getVoteData().set(uuid + ".weekly", 0);
+                getVoteData().set("players." + uuid + ".weekly", 0);
             }
         }
         saveVoteData();
@@ -401,10 +493,11 @@ public class VoteDataHandler {
         OfflinePlayer player = Bukkit.getOfflinePlayer(uuid);
         String playerName = player.getName() != null ? player.getName() : "Unknown";
 
+        List<String> formattedRewards = new ArrayList<>();
         for (String reward : rewards) {
-            reward = reward.replace("%player%", playerName);
-            addPendingReward(uuid, reward);
+            formattedRewards.add(reward.replace("%player%", playerName));
         }
+        addPendingRewards(uuid, formattedRewards);
         
         if (player.isOnline()) {
             plugin.getVoteListener().processPendingRewards(player.getPlayer());
@@ -413,9 +506,12 @@ public class VoteDataHandler {
 
     // Used for Admin Force Give
     public int distributeTopVoterRewards(List<Map.Entry<UUID, Integer>> topVoters) {
-        String monthKey = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy-MM")); // Use current month for forced rewards
-        storeUnclaimedRewards(topVoters, monthKey);
-        return Math.min(topVoters.size(), 10);
+        synchronized (lock) {
+            String monthKey = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy-MM")); // Use current month for forced rewards
+            storeUnclaimedRewards(topVoters, monthKey);
+            saveVoteData();
+            return Math.min(topVoters.size(), 10);
+        }
     }
 
     private void sendDiscordWebhook(List<Map.Entry<UUID, Integer>> topVoters, String monthName) {
@@ -448,12 +544,12 @@ public class VoteDataHandler {
     }
 
     public List<Map.Entry<UUID, Integer>> getTopVoters() {
-        if (System.currentTimeMillis() - lastCacheUpdate < 60000 && !cachedTopVoters.isEmpty()) {
-            return new ArrayList<>(cachedTopVoters);
-        }
-
-        Map<UUID, Integer> votes = new HashMap<>();
         synchronized (lock) {
+            if (System.currentTimeMillis() - lastCacheUpdate < 60000 && !cachedTopVoters.isEmpty()) {
+                return new ArrayList<>(cachedTopVoters);
+            }
+
+            Map<UUID, Integer> votes = new HashMap<>();
             ConfigurationSection players = getVoteData().getConfigurationSection("players");
             if (players != null) {
                 for (String uuidStr : players.getKeys(false)) {
@@ -463,21 +559,21 @@ public class VoteDataHandler {
                     }
                 }
             }
-        }
 
-        List<Map.Entry<UUID, Integer>> sorted = votes.entrySet().stream()
-                .sorted(Map.Entry.<UUID, Integer>comparingByValue().reversed())
-                .collect(Collectors.toList());
-        
-        cachedTopVoters = sorted;
-        lastCacheUpdate = System.currentTimeMillis();
-        
-        return sorted;
+            List<Map.Entry<UUID, Integer>> sorted = votes.entrySet().stream()
+                    .sorted(Map.Entry.<UUID, Integer>comparingByValue().reversed())
+                    .collect(Collectors.toList());
+            
+            cachedTopVoters = sorted;
+            lastCacheUpdate = System.currentTimeMillis();
+            
+            return sorted;
+        }
     }
     
     public List<Map.Entry<UUID, Integer>> getWeeklyTopVoters() {
-        Map<UUID, Integer> votes = new HashMap<>();
         synchronized (lock) {
+            Map<UUID, Integer> votes = new HashMap<>();
             ConfigurationSection players = getVoteData().getConfigurationSection("players");
             if (players != null) {
                 for (String uuidStr : players.getKeys(false)) {
@@ -487,15 +583,15 @@ public class VoteDataHandler {
                     }
                 }
             }
+            return votes.entrySet().stream()
+                    .sorted(Map.Entry.<UUID, Integer>comparingByValue().reversed())
+                    .collect(Collectors.toList());
         }
-        return votes.entrySet().stream()
-                .sorted(Map.Entry.<UUID, Integer>comparingByValue().reversed())
-                .collect(Collectors.toList());
     }
 
     public List<Map.Entry<UUID, Integer>> getAllTimeTopVoters() {
-        Map<UUID, Integer> votes = new HashMap<>();
         synchronized (lock) {
+            Map<UUID, Integer> votes = new HashMap<>();
             ConfigurationSection players = getVoteData().getConfigurationSection("players");
             if (players != null) {
                 for (String uuidStr : players.getKeys(false)) {
@@ -505,23 +601,43 @@ public class VoteDataHandler {
                     }
                 }
             }
-        }
 
-        return votes.entrySet().stream()
-                .sorted(Map.Entry.<UUID, Integer>comparingByValue().reversed())
-                .collect(Collectors.toList());
+            return votes.entrySet().stream()
+                    .sorted(Map.Entry.<UUID, Integer>comparingByValue().reversed())
+                    .collect(Collectors.toList());
+        }
     }
     
     public int getTotalServerVotes() {
-        int total = 0;
         synchronized (lock) {
+            int total = 0;
             ConfigurationSection players = getVoteData().getConfigurationSection("players");
             if (players != null) {
                 for (String uuidStr : players.getKeys(false)) {
                     total += players.getInt(uuidStr + ".total", 0);
                 }
             }
+            return total;
         }
-        return total;
+    }
+
+    public int getLastMonthTotal() {
+        synchronized (lock) {
+            String lastMonthKey = LocalDate.now().minusMonths(1).format(DateTimeFormatter.ofPattern("yyyy-MM"));
+            if (getVoteData().contains("history." + lastMonthKey + ".total_server_votes")) {
+                return getVoteData().getInt("history." + lastMonthKey + ".total_server_votes", 0);
+            }
+            ConfigurationSection monthSection = getVoteData().getConfigurationSection("history." + lastMonthKey);
+            if (monthSection != null) {
+                int total = 0;
+                for (String rankKey : monthSection.getKeys(false)) {
+                    if (!rankKey.equals("total_server_votes")) {
+                        total += monthSection.getInt(rankKey + ".votes", 0);
+                    }
+                }
+                return total;
+            }
+            return 0;
+        }
     }
 }

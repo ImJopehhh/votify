@@ -6,10 +6,13 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.event.inventory.InventoryDragEvent;
 import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemStack;
 import org.mapplestudio.votify.Votify;
 import org.mapplestudio.votify.gui.PlayerGui;
+import org.mapplestudio.votify.gui.RewardEditor;
+import org.mapplestudio.votify.gui.ServiceRewardEditor;
 
 public class GuiListener implements Listener {
 
@@ -20,8 +23,13 @@ public class GuiListener implements Listener {
         InventoryHolder holder = e.getInventory().getHolder();
         if (!(e.getWhoClicked() instanceof Player)) return;
         Player player = (Player) e.getWhoClicked();
-        ItemStack clickedItem = e.getCurrentItem();
 
+        if (holder instanceof RewardEditor || holder instanceof ServiceRewardEditor) {
+            e.setCancelled(true);
+            return;
+        }
+
+        ItemStack clickedItem = e.getCurrentItem();
         if (clickedItem == null || clickedItem.getType() == Material.AIR) return;
 
         if (holder instanceof PlayerGui) {
@@ -51,6 +59,14 @@ public class GuiListener implements Listener {
                     }
                 }
             }
+        }
+    }
+
+    @EventHandler
+    public void onInventoryDrag(InventoryDragEvent e) {
+        InventoryHolder holder = e.getInventory().getHolder();
+        if (holder instanceof PlayerGui || holder instanceof RewardEditor || holder instanceof ServiceRewardEditor) {
+            e.setCancelled(true);
         }
     }
 }

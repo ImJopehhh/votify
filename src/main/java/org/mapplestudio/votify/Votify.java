@@ -62,11 +62,22 @@ public final class Votify extends JavaPlugin {
             getLogger().info("Successfully hooked into PlaceholderAPI!");
         }
 
+        // Schedule periodic check for monthly and weekly resets (every 15 minutes = 18000 ticks)
+        getServer().getScheduler().runTaskTimerAsynchronously(this, () -> {
+            if (voteDataHandler != null) {
+                voteDataHandler.checkMonthlyReset();
+                voteDataHandler.checkWeeklyReset();
+            }
+        }, 18000L, 18000L);
+
         getLogger().info("Votify has been enabled!");
     }
 
     @Override
     public void onDisable() {
+        if (voteDataHandler != null) {
+            voteDataHandler.saveVoteDataSync();
+        }
         getLogger().info("Votify has been disabled!");
     }
 

@@ -59,10 +59,7 @@ public class VotifyExpansion extends PlaceholderExpansion {
         }
         
         if (lowerParams.equals("lastmonthtotal")) {
-             // Logic to sum up history from last month
-             // This would require iterating history.yyyy-MM.*.votes
-             // For simplicity/performance, returning 0 or implementing a specific tracker later
-             return "0"; // Placeholder for now
+            return String.valueOf(plugin.getVoteDataHandler().getLastMonthTotal());
         }
 
         if (lowerParams.equals("votepartyvotescurrent")) {

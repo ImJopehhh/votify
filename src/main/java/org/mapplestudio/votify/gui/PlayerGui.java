@@ -32,7 +32,8 @@ public class PlayerGui implements InventoryHolder {
         this.plugin = plugin;
         this.viewer = viewer;
         this.type = type;
-        this.inv = Bukkit.createInventory(this, 27, getTitle(type));
+        int size = (type == GuiType.LEADERBOARD) ? 54 : 27;
+        this.inv = Bukkit.createInventory(this, size, getTitle(type));
         initializeItems();
     }
 
@@ -96,19 +97,29 @@ public class PlayerGui implements InventoryHolder {
         } else if (type == GuiType.LEADERBOARD) {
             List<Map.Entry<UUID, Integer>> topVoters = plugin.getVoteDataHandler().getTopVoters();
             
-            // Display top 7 in a nice pattern
-            int[] slots = {13, 12, 14, 11, 15, 10, 16};
+            // Display Top 10 in a clean podium layout
+            // Rank 1 at slot 13, Rank 2 at slot 11, Rank 3 at slot 15
+            // Ranks 4-10 across row 4 (slots 28 to 34)
+            int[] slots = {13, 11, 15, 28, 29, 30, 31, 32, 33, 34};
             
             for (int i = 0; i < Math.min(topVoters.size(), slots.length); i++) {
                 Map.Entry<UUID, Integer> entry = topVoters.get(i);
                 OfflinePlayer p = Bukkit.getOfflinePlayer(entry.getKey());
                 String name = p.getName() != null ? p.getName() : "Unknown";
+                int rank = i + 1;
+                String rankColor = (rank == 1) ? "&6&l" : ((rank == 2) ? "&f&l" : ((rank == 3) ? "&c&l" : "&e&l"));
                 
-                inv.setItem(slots[i], createHeadItem(p, "&e&l#" + (i + 1) + " " + name, 
-                        "&7Votes: &f" + entry.getValue()));
+                inv.setItem(slots[i], createHeadItem(p, rankColor + "#" + rank + " " + name, 
+                        "&7Monthly Votes: &f" + entry.getValue(),
+                        "&7Rank: " + rankColor + "#" + rank));
             }
 
-            inv.setItem(22, createGuiItem(Material.ARROW, "&cBack", "&7Return to main menu"));
+            for (int i = topVoters.size(); i < slots.length; i++) {
+                int rank = i + 1;
+                inv.setItem(slots[i], createGuiItem(Material.GRAY_DYE, "&8#" + rank + " Empty", "&7No votes recorded yet."));
+            }
+
+            inv.setItem(49, createGuiItem(Material.ARROW, "&cBack", "&7Return to main menu"));
         } else if (type == GuiType.CLAIM) {
             int rank = plugin.getVoteDataHandler().getUnclaimedRewardRank(viewer.getUniqueId());
             

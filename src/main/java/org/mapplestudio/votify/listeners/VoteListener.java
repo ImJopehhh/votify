@@ -53,7 +53,11 @@ public class VoteListener implements Listener {
     // Helper method to find player case-insensitively
     private OfflinePlayer getOfflinePlayerCaseInsensitive(String username) {
         // First, check if player is online (fastest and most accurate)
-        Player onlinePlayer = Bukkit.getPlayer(username);
+        Player onlinePlayer = Bukkit.getPlayerExact(username);
+        if (onlinePlayer != null) {
+            return onlinePlayer;
+        }
+        onlinePlayer = Bukkit.getPlayer(username);
         if (onlinePlayer != null) {
             return onlinePlayer;
         }
@@ -63,6 +67,13 @@ public class VoteListener implements Listener {
         if (offlinePlayer.hasPlayedBefore()) {
             return offlinePlayer;
         }
+
+        // Third, scan offline players case-insensitively
+        for (OfflinePlayer op : Bukkit.getOfflinePlayers()) {
+            if (op.getName() != null && op.getName().equalsIgnoreCase(username)) {
+                return op;
+            }
+        }
         
         return offlinePlayer;
     }
@@ -70,7 +81,7 @@ public class VoteListener implements Listener {
     public void processVote(OfflinePlayer offlinePlayer, String serviceName, String username) {
         String playerName = offlinePlayer.getName() != null ? offlinePlayer.getName() : username;
 
-        // 1. Update Stats (Thread-safe config handling required in DataHandler)
+        // 1. Update Stats (Thread-safe config handling in DataHandler)
         plugin.getVoteDataHandler().addVote(offlinePlayer.getUniqueId(), serviceName);
         
         // 2. Queue Rewards
@@ -104,18 +115,18 @@ public class VoteListener implements Listener {
             rewards = rewardsConfig.getStringList(serviceName);
         } else {
             String safeServiceName = serviceName.replace(".", "_");
-             if (rewardsConfig.contains(safeServiceName)) {
+            if (rewardsConfig.contains(safeServiceName)) {
                 rewards = rewardsConfig.getStringList(safeServiceName);
             } else {
                 rewards = rewardsConfig.getStringList("default");
             }
         }
 
+        List<String> queuedRewards = new ArrayList<>();
         for (String rewardString : rewards) {
-            // Replace %player% here so it's ready for execution
-            rewardString = rewardString.replace("%player%", playerName);
-            plugin.getVoteDataHandler().addPendingReward(offlinePlayer.getUniqueId(), rewardString);
+            queuedRewards.add(rewardString.replace("%player%", playerName));
         }
+        plugin.getVoteDataHandler().addPendingRewards(offlinePlayer.getUniqueId(), queuedRewards);
     }
 
     public void processPendingRewards(Player player) {
@@ -153,8 +164,8 @@ public class VoteListener implements Listener {
     }
 
     private void giveItem(Player player, String itemString) {
-        String[] parts = itemString.split(" ");
-        if (parts.length == 0) return;
+        String[] parts = itemString.trim().split("\\s+");
+        if (parts.length == 0 || parts[0].isEmpty()) return;
 
         Material material = Material.matchMaterial(parts[0].toUpperCase());
         if (material == null) {
@@ -163,29 +174,60 @@ public class VoteListener implements Listener {
         }
 
         int amount = 1;
+        int startIndex = 1;
         if (parts.length > 1) {
             try {
                 amount = Integer.parseInt(parts[1]);
-            } catch (NumberFormatException e) {
+                startIndex = 2;
+            } catch (NumberFormatException ignored) {
+                // parts[1] is not a number, keep amount at 1 and inspect from index 1
             }
         }
 
-        ItemStack item = new ItemStack(material, amount);
+        ItemStack item = new ItemStack(material, Math.max(1, amount));
         ItemMeta meta = item.getItemMeta();
 
         if (meta != null) {
-            for (int i = 2; i < parts.length; i++) {
+            for (int i = startIndex; i < parts.length; i++) {
                 String arg = parts[i];
-                if (arg.startsWith("name:")) {
+                String lowerArg = arg.toLowerCase();
+                if (lowerArg.startsWith("name:")) {
                     String displayName = arg.substring(5).replace("_", " ");
                     meta.setDisplayName(ChatColor.translateAlternateColorCodes('&', displayName));
-                } else if (arg.startsWith("lore:")) {
+                } else if (lowerArg.startsWith("lore:")) {
                     String[] loreLines = arg.substring(5).split("\\|");
                     List<String> lore = new ArrayList<>();
                     for (String line : loreLines) {
                         lore.add(ChatColor.translateAlternateColorCodes('&', line.replace("_", " ")));
                     }
                     meta.setLore(lore);
+                } else if (lowerArg.startsWith("enchant:")) {
+                    String[] enchantParts = arg.substring(8).split(":");
+                    if (enchantParts.length > 0) {
+                        String enchantName = enchantParts[0];
+                        int level = 1;
+                        if (enchantParts.length > 1) {
+                            try {
+                                level = Integer.parseInt(enchantParts[1]);
+                            } catch (NumberFormatException ignored) {}
+                        }
+                        org.bukkit.enchantments.Enchantment enchantment = org.bukkit.enchantments.Enchantment.getByName(enchantName.toUpperCase());
+                        if (enchantment == null) {
+                            try {
+                                enchantment = org.bukkit.enchantments.Enchantment.getByKey(org.bukkit.NamespacedKey.minecraft(enchantName.toLowerCase()));
+                            } catch (Throwable ignored) {}
+                        }
+                        if (enchantment != null) {
+                            meta.addEnchant(enchantment, level, true);
+                        } else {
+                            plugin.getLogger().warning("Unknown enchantment: " + enchantName);
+                        }
+                    }
+                } else if (lowerArg.startsWith("custommodeldata:")) {
+                    try {
+                        int cmd = Integer.parseInt(arg.substring(16));
+                        meta.setCustomModelData(cmd);
+                    } catch (NumberFormatException ignored) {}
                 }
             }
             item.setItemMeta(meta);
