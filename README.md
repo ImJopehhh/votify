@@ -7,7 +7,6 @@
 [![Platform](https://img.shields.io/badge/Platform-Paper%20%7C%20Purpur%20%7C%20Spigot-5d68ec?style=flat-square)](https://papermc.io)
 [![Minecraft](https://img.shields.io/badge/Minecraft-1.16%20--%201.21.x%20%26%2026.x-brightgreen?style=flat-square)](https://www.minecraft.net)
 [![Java](https://img.shields.io/badge/Java-21%20LTS-orange?style=flat-square)](https://adoptium.net)
-[![License](https://img.shields.io/github/license/ImJopehhh/votify?style=flat-square)](LICENSE)
 
 ---
 
