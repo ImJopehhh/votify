@@ -168,7 +168,9 @@ public class VoteDataHandler {
                         plugin.getDatabaseManager().setMetaInt("voteparty_current", currentPartyVotes);
                         String progressMsg = plugin.getConfig().getString("messages.voteparty.progress");
                         if (progressMsg != null && !progressMsg.isEmpty()) {
-                            progressMsg = progressMsg.replace("%current_votes%", String.valueOf(currentPartyVotes))
+                            String prefix = plugin.getConfig().getString("messages.prefix", "&8[&bVotify&8] &r");
+                            progressMsg = progressMsg.replace("%prefix%", prefix)
+                                                     .replace("%current_votes%", String.valueOf(currentPartyVotes))
                                                      .replace("%required_votes%", String.valueOf(requiredVotes));
                             Bukkit.broadcastMessage(ColorUtil.colorize(progressMsg));
                         }
@@ -226,7 +228,9 @@ public class VoteDataHandler {
                     // Send progress message
                     String progressMsg = plugin.getConfig().getString("messages.voteparty.progress");
                     if (progressMsg != null && !progressMsg.isEmpty()) {
-                        progressMsg = progressMsg.replace("%current_votes%", String.valueOf(currentPartyVotes))
+                        String prefix = plugin.getConfig().getString("messages.prefix", "&8[&bVotify&8] &r");
+                        progressMsg = progressMsg.replace("%prefix%", prefix)
+                                                 .replace("%current_votes%", String.valueOf(currentPartyVotes))
                                                  .replace("%required_votes%", String.valueOf(requiredVotes));
                         Bukkit.broadcastMessage(ColorUtil.colorize(progressMsg));
                     }

@@ -14,6 +14,7 @@ import org.mapplestudio.votify.placeholders.VotifyExpansion;
 import org.mapplestudio.votify.database.DataMigrator;
 import org.mapplestudio.votify.database.DatabaseManager;
 import org.mapplestudio.votify.util.ChatPromptManager;
+import org.mapplestudio.votify.util.ColorUtil;
 import org.mapplestudio.votify.util.VotePartyBossBar;
 
 import java.io.File;
@@ -161,6 +162,13 @@ public final class Votify extends JavaPlugin {
 
     public VotePartyBossBar getBossBar() {
         return bossBar;
+    }
+
+    public String getMessage(String key) {
+        String raw = getConfig().getString("messages." + key, "");
+        if (raw == null || raw.isEmpty()) return "";
+        String prefix = getConfig().getString("messages.prefix", "&8[&bVotify&8] &r");
+        return ColorUtil.colorize(raw.replace("%prefix%", prefix));
     }
 
     public static Votify getInstance() {

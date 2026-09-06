@@ -26,7 +26,7 @@ public class VotifyAdminCommand implements CommandExecutor, TabCompleter {
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         if (!sender.hasPermission("votify.admin")) {
-            sender.sendMessage(ColorUtil.colorize(plugin.getConfig().getString("messages.prefix") + plugin.getConfig().getString("messages.no-permission")));
+            sender.sendMessage(plugin.getMessage("no-permission"));
             return true;
         }
 
@@ -127,7 +127,7 @@ public class VotifyAdminCommand implements CommandExecutor, TabCompleter {
                 if (plugin.getBossBar() != null) {
                     plugin.getBossBar().init();
                 }
-                sender.sendMessage(ColorUtil.colorize(plugin.getConfig().getString("messages.prefix") + " " + plugin.getConfig().getString("messages.reload")));
+                sender.sendMessage(plugin.getMessage("reload"));
                 break;
 
             case "rewardsettings":
