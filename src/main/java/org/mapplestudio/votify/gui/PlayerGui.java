@@ -70,10 +70,9 @@ public class PlayerGui implements InventoryHolder {
                     "&7Click to view the", "&7monthly top voters."));
 
         } else if (type == GuiType.STATS) {
-            String path = "players." + viewer.getUniqueId().toString();
-            int total = plugin.getVoteDataHandler().getVoteData().getInt(path + ".total", 0);
-            int monthly = plugin.getVoteDataHandler().getVoteData().getInt(path + ".monthly", 0);
-            int wins = plugin.getVoteDataHandler().getVoteData().getInt(path + ".wins", 0);
+            int total = plugin.getVoteDataHandler().getPlayerStat(viewer.getUniqueId(), "total");
+            int monthly = plugin.getVoteDataHandler().getPlayerStat(viewer.getUniqueId(), "monthly");
+            int wins = plugin.getVoteDataHandler().getPlayerStat(viewer.getUniqueId(), "wins");
             
             // Calculate Rank
             List<Map.Entry<UUID, Integer>> topVoters = plugin.getVoteDataHandler().getTopVoters();

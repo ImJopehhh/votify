@@ -135,7 +135,42 @@ public class VoteDataHandler {
         }
     }
 
+    public boolean isSqlite() {
+        return plugin.getDatabaseManager() != null;
+    }
+
     public void addVote(UUID playerUUID, String serviceName) {
+        if (isSqlite()) {
+            synchronized (lock) {
+                checkMonthlyReset();
+                checkWeeklyReset();
+                OfflinePlayer op = Bukkit.getOfflinePlayer(playerUUID);
+                String pName = op.getName() != null ? op.getName() : "Unknown";
+                plugin.getDatabaseManager().addVote(playerUUID, pName, serviceName);
+
+                // Vote Party Logic
+                if (plugin.getVoteRewardsConfig().getBoolean("voteparty.enabled", false)) {
+                    int currentPartyVotes = plugin.getDatabaseManager().getMetaInt("voteparty_current", 0) + 1;
+                    int requiredVotes = plugin.getVoteRewardsConfig().getInt("voteparty.votes-required", 50);
+
+                    if (currentPartyVotes >= requiredVotes) {
+                        plugin.getDatabaseManager().setMetaInt("voteparty_current", 0);
+                        Bukkit.getScheduler().runTask(plugin, this::triggerVoteParty);
+                    } else {
+                        plugin.getDatabaseManager().setMetaInt("voteparty_current", currentPartyVotes);
+                        String progressMsg = plugin.getConfig().getString("messages.voteparty.progress");
+                        if (progressMsg != null && !progressMsg.isEmpty()) {
+                            progressMsg = progressMsg.replace("%current_votes%", String.valueOf(currentPartyVotes))
+                                                     .replace("%required_votes%", String.valueOf(requiredVotes));
+                            Bukkit.broadcastMessage(ChatColor.translateAlternateColorCodes('&', progressMsg));
+                        }
+                    }
+                }
+                lastCacheUpdate = 0;
+            }
+            return;
+        }
+
         synchronized (lock) {
             checkMonthlyReset();
             checkWeeklyReset();
@@ -176,7 +211,6 @@ public class VoteDataHandler {
                     // Trigger Vote Party
                     Bukkit.getScheduler().runTask(plugin, this::triggerVoteParty);
                     getVoteData().set("voteparty.current", 0);
-                    // Reset contributions? Usually kept until next party or forever. Let's keep for now.
                 } else {
                     // Send progress message
                     String progressMsg = plugin.getConfig().getString("messages.voteparty.progress");
@@ -214,6 +248,11 @@ public class VoteDataHandler {
     }
 
     public void addPendingReward(UUID playerUUID, String rewardString, boolean saveImmediately) {
+        if (isSqlite()) {
+            plugin.getDatabaseManager().addPendingReward(playerUUID, rewardString);
+            return;
+        }
+
         synchronized (lock) {
             List<String> pending = getVoteData().getStringList("queue." + playerUUID.toString());
             pending.add(rewardString);
@@ -225,6 +264,11 @@ public class VoteDataHandler {
     }
 
     public void addPendingRewards(UUID playerUUID, List<String> rewardStrings) {
+        if (isSqlite()) {
+            plugin.getDatabaseManager().addPendingRewards(playerUUID, rewardStrings);
+            return;
+        }
+
         synchronized (lock) {
             List<String> pending = getVoteData().getStringList("queue." + playerUUID.toString());
             pending.addAll(rewardStrings);
@@ -234,12 +278,21 @@ public class VoteDataHandler {
     }
 
     public List<String> getPendingRewards(UUID playerUUID) {
+        if (isSqlite()) {
+            return plugin.getDatabaseManager().getPendingRewards(playerUUID);
+        }
+
         synchronized (lock) {
             return getVoteData().getStringList("queue." + playerUUID.toString());
         }
     }
 
     public void clearPendingRewards(UUID playerUUID) {
+        if (isSqlite()) {
+            plugin.getDatabaseManager().clearPendingRewards(playerUUID);
+            return;
+        }
+
         synchronized (lock) {
             getVoteData().set("queue." + playerUUID.toString(), null);
         }
@@ -288,7 +341,16 @@ public class VoteDataHandler {
         String monthKey = LocalDate.now().minusMonths(1).format(DateTimeFormatter.ofPattern("yyyy-MM"));
         storeUnclaimedRewards(topVoters, monthKey);
 
-        // 3. Save History & Update Streaks
+        if (isSqlite()) {
+            plugin.getDatabaseManager().processMonthlyReset(monthKey, topVoters);
+            if (plugin.getConfig().getBoolean("discord.enabled")) {
+                sendDiscordWebhook(topVoters, monthKey);
+            }
+            lastCacheUpdate = 0;
+            return;
+        }
+
+        // 3. Save History & Update Streaks (YAML fallback)
         int totalMonthlyServerVotes = 0;
         ConfigurationSection players = getVoteData().getConfigurationSection("players");
         if (players != null) {
@@ -358,6 +420,11 @@ public class VoteDataHandler {
     
     private void processWeeklyReset() {
         plugin.getLogger().info("Processing weekly reset.");
+        if (isSqlite()) {
+            plugin.getDatabaseManager().processWeeklyReset();
+            return;
+        }
+
         ConfigurationSection players = getVoteData().getConfigurationSection("players");
         if (players != null) {
             for (String uuid : players.getKeys(false)) {
@@ -391,62 +458,94 @@ public class VoteDataHandler {
             }
 
             if (hasReward) {
-                getVoteData().set("unclaimed_rewards." + monthKey + "." + uuid.toString() + ".rank", rank);
-                getVoteData().set("unclaimed_rewards." + monthKey + "." + uuid.toString() + ".timestamp", System.currentTimeMillis());
+                if (isSqlite()) {
+                    plugin.getDatabaseManager().storeUnclaimedReward(monthKey, uuid, rank);
+                } else {
+                    getVoteData().set("unclaimed_rewards." + monthKey + "." + uuid.toString() + ".rank", rank);
+                    getVoteData().set("unclaimed_rewards." + monthKey + "." + uuid.toString() + ".timestamp", System.currentTimeMillis());
+                }
             }
         }
     }
 
     public int getUnclaimedRewardRank(UUID uuid) {
-        ConfigurationSection unclaimed = getVoteData().getConfigurationSection("unclaimed_rewards");
-        if (unclaimed == null) return -1;
-
-        for (String monthKey : unclaimed.getKeys(false)) {
-            if (unclaimed.contains(monthKey + "." + uuid.toString())) {
-                long timestamp = unclaimed.getLong(monthKey + "." + uuid.toString() + ".timestamp");
-                // Check 28 days expiration (28 * 24 * 60 * 60 * 1000 = 2419200000 ms)
-                if (System.currentTimeMillis() - timestamp > 2419200000L) {
-                    // Expired
-                    getVoteData().set("unclaimed_rewards." + monthKey + "." + uuid.toString(), null);
-                    saveVoteData();
-                    continue;
-                }
-                return unclaimed.getInt(monthKey + "." + uuid.toString() + ".rank");
-            }
+        if (isSqlite()) {
+            return plugin.getDatabaseManager().getUnclaimedRewardRank(uuid);
         }
-        return -1;
+
+        synchronized (lock) {
+            ConfigurationSection unclaimed = getVoteData().getConfigurationSection("unclaimed_rewards");
+            if (unclaimed == null) return -1;
+
+            for (String monthKey : unclaimed.getKeys(false)) {
+                if (unclaimed.contains(monthKey + "." + uuid.toString())) {
+                    long timestamp = unclaimed.getLong(monthKey + "." + uuid.toString() + ".timestamp");
+                    // Check 28 days expiration (28 * 24 * 60 * 60 * 1000 = 2419200000 ms)
+                    if (System.currentTimeMillis() - timestamp > 2419200000L) {
+                        // Expired
+                        getVoteData().set("unclaimed_rewards." + monthKey + "." + uuid.toString(), null);
+                        saveVoteData();
+                        continue;
+                    }
+                    return unclaimed.getInt(monthKey + "." + uuid.toString() + ".rank");
+                }
+            }
+            return -1;
+        }
     }
 
     public boolean claimReward(UUID uuid) {
-        ConfigurationSection unclaimed = getVoteData().getConfigurationSection("unclaimed_rewards");
-        if (unclaimed == null) return false;
+        if (isSqlite()) {
+            int rank = plugin.getDatabaseManager().getUnclaimedRewardRank(uuid);
+            if (rank == -1) return false;
 
-        for (String monthKey : unclaimed.getKeys(false)) {
-            if (unclaimed.contains(monthKey + "." + uuid.toString())) {
-                int rank = unclaimed.getInt(monthKey + "." + uuid.toString() + ".rank");
+            OfflinePlayer offlinePlayer = Bukkit.getOfflinePlayer(uuid);
+            if (offlinePlayer.isOnline()) {
+                Player player = offlinePlayer.getPlayer();
+                List<String> rewards = getRewardsForRank(rank);
+                int requiredSlots = calculateRequiredSlots(rewards);
                 
-                // Check Inventory Space if player is online
-                OfflinePlayer offlinePlayer = Bukkit.getOfflinePlayer(uuid);
-                if (offlinePlayer.isOnline()) {
-                    Player player = offlinePlayer.getPlayer();
-                    List<String> rewards = getRewardsForRank(rank);
-                    int requiredSlots = calculateRequiredSlots(rewards);
-                    
-                    if (getEmptySlots(player) < requiredSlots) {
-                        return false; // Inventory full
-                    }
+                if (getEmptySlots(player) < requiredSlots) {
+                    return false; // Inventory full
                 }
-
-                // Distribute rewards
-                distributeRewardForRank(uuid, rank);
-                
-                // Remove from unclaimed
-                getVoteData().set("unclaimed_rewards." + monthKey + "." + uuid.toString(), null);
-                saveVoteData();
-                return true;
             }
+
+            distributeRewardForRank(uuid, rank);
+            plugin.getDatabaseManager().removeUnclaimedReward(uuid);
+            return true;
         }
-        return false;
+
+        synchronized (lock) {
+            ConfigurationSection unclaimed = getVoteData().getConfigurationSection("unclaimed_rewards");
+            if (unclaimed == null) return false;
+
+            for (String monthKey : unclaimed.getKeys(false)) {
+                if (unclaimed.contains(monthKey + "." + uuid.toString())) {
+                    int rank = unclaimed.getInt(monthKey + "." + uuid.toString() + ".rank");
+                    
+                    // Check Inventory Space if player is online
+                    OfflinePlayer offlinePlayer = Bukkit.getOfflinePlayer(uuid);
+                    if (offlinePlayer.isOnline()) {
+                        Player player = offlinePlayer.getPlayer();
+                        List<String> rewards = getRewardsForRank(rank);
+                        int requiredSlots = calculateRequiredSlots(rewards);
+                        
+                        if (getEmptySlots(player) < requiredSlots) {
+                            return false; // Inventory full
+                        }
+                    }
+
+                    // Distribute rewards
+                    distributeRewardForRank(uuid, rank);
+                    
+                    // Remove from unclaimed
+                    getVoteData().set("unclaimed_rewards." + monthKey + "." + uuid.toString(), null);
+                    saveVoteData();
+                    return true;
+                }
+            }
+            return false;
+        }
     }
 
     private List<String> getRewardsForRank(int rank) {
@@ -509,7 +608,9 @@ public class VoteDataHandler {
         synchronized (lock) {
             String monthKey = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy-MM")); // Use current month for forced rewards
             storeUnclaimedRewards(topVoters, monthKey);
-            saveVoteData();
+            if (!isSqlite()) {
+                saveVoteData();
+            }
             return Math.min(topVoters.size(), 10);
         }
     }
@@ -544,6 +645,10 @@ public class VoteDataHandler {
     }
 
     public List<Map.Entry<UUID, Integer>> getTopVoters() {
+        if (isSqlite()) {
+            return plugin.getDatabaseManager().getTopVoters(10);
+        }
+
         synchronized (lock) {
             if (System.currentTimeMillis() - lastCacheUpdate < 60000 && !cachedTopVoters.isEmpty()) {
                 return new ArrayList<>(cachedTopVoters);
@@ -572,6 +677,10 @@ public class VoteDataHandler {
     }
     
     public List<Map.Entry<UUID, Integer>> getWeeklyTopVoters() {
+        if (isSqlite()) {
+            return plugin.getDatabaseManager().getWeeklyTopVoters(10);
+        }
+
         synchronized (lock) {
             Map<UUID, Integer> votes = new HashMap<>();
             ConfigurationSection players = getVoteData().getConfigurationSection("players");
@@ -590,6 +699,10 @@ public class VoteDataHandler {
     }
 
     public List<Map.Entry<UUID, Integer>> getAllTimeTopVoters() {
+        if (isSqlite()) {
+            return plugin.getDatabaseManager().getAllTimeTopVoters(10);
+        }
+
         synchronized (lock) {
             Map<UUID, Integer> votes = new HashMap<>();
             ConfigurationSection players = getVoteData().getConfigurationSection("players");
@@ -609,6 +722,10 @@ public class VoteDataHandler {
     }
     
     public int getTotalServerVotes() {
+        if (isSqlite()) {
+            return plugin.getDatabaseManager().getTotalServerVotes();
+        }
+
         synchronized (lock) {
             int total = 0;
             ConfigurationSection players = getVoteData().getConfigurationSection("players");
@@ -622,8 +739,12 @@ public class VoteDataHandler {
     }
 
     public int getLastMonthTotal() {
+        String lastMonthKey = LocalDate.now().minusMonths(1).format(DateTimeFormatter.ofPattern("yyyy-MM"));
+        if (isSqlite()) {
+            return plugin.getDatabaseManager().getLastMonthTotal(lastMonthKey);
+        }
+
         synchronized (lock) {
-            String lastMonthKey = LocalDate.now().minusMonths(1).format(DateTimeFormatter.ofPattern("yyyy-MM"));
             if (getVoteData().contains("history." + lastMonthKey + ".total_server_votes")) {
                 return getVoteData().getInt("history." + lastMonthKey + ".total_server_votes", 0);
             }
@@ -638,6 +759,19 @@ public class VoteDataHandler {
                 return total;
             }
             return 0;
+        }
+    }
+
+    public int getPlayerStat(UUID uuid, String statName) {
+        if (isSqlite()) {
+            Map<String, Object> stats = plugin.getDatabaseManager().getPlayerStats(uuid);
+            Object val = stats.get(statName);
+            if (val instanceof Number) {
+                return ((Number) val).intValue();
+            }
+            return 0;
+        } else {
+            return getVoteData().getInt("players." + uuid.toString() + "." + statName, 0);
         }
     }
 }

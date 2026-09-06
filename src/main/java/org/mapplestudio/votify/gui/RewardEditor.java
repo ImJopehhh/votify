@@ -47,6 +47,15 @@ public class RewardEditor implements InventoryHolder {
             }
         }
 
+        // Bottom row styling
+        ItemStack filler = createGuiItem(Material.GRAY_STAINED_GLASS_PANE, " ");
+        for (int i = 45; i < 53; i++) {
+            inv.setItem(i, filler);
+        }
+        inv.setItem(49, createGuiItem(Material.COMPASS, "&b&lVotify Reward Editor",
+                "&7Click any service paper above to configure its rewards.",
+                "&7Click &aAdd New Service &7to add a new voting platform."));
+
         // Add a button to add a new service
         inv.setItem(53, createGuiItem(Material.EMERALD, "&aAdd New Service", "&7Click to add a new vote service."));
     }

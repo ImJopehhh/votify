@@ -63,11 +63,16 @@ public class VotifyExpansion extends PlaceholderExpansion {
         }
 
         if (lowerParams.equals("votepartyvotescurrent")) {
-            return String.valueOf(plugin.getVoteDataHandler().getVoteData().getInt("voteparty.current", 0));
+            int current = plugin.getVoteDataHandler().isSqlite() 
+                    ? plugin.getDatabaseManager().getMetaInt("voteparty_current", 0) 
+                    : plugin.getVoteDataHandler().getVoteData().getInt("voteparty.current", 0);
+            return String.valueOf(current);
         }
         
         if (lowerParams.equals("votepartyvotesneeded")) {
-            int current = plugin.getVoteDataHandler().getVoteData().getInt("voteparty.current", 0);
+            int current = plugin.getVoteDataHandler().isSqlite() 
+                    ? plugin.getDatabaseManager().getMetaInt("voteparty_current", 0) 
+                    : plugin.getVoteDataHandler().getVoteData().getInt("voteparty.current", 0);
             int required = plugin.getVoteRewardsConfig().getInt("voteparty.votes-required", 50);
             return String.valueOf(Math.max(0, required - current));
         }
@@ -124,25 +129,25 @@ public class VotifyExpansion extends PlaceholderExpansion {
         // --- Player Specific Placeholders ---
         if (player == null) return null;
 
-        String path = "players." + player.getUniqueId().toString();
+        UUID uuid = player.getUniqueId();
 
         switch (lowerParams) {
             case "total_alltime":
-                return String.valueOf(plugin.getVoteDataHandler().getVoteData().getInt(path + ".total", 0));
+                return String.valueOf(plugin.getVoteDataHandler().getPlayerStat(uuid, "total"));
             case "total_monthly":
-                return String.valueOf(plugin.getVoteDataHandler().getVoteData().getInt(path + ".monthly", 0));
+                return String.valueOf(plugin.getVoteDataHandler().getPlayerStat(uuid, "monthly"));
             case "total_weekly":
-                return String.valueOf(plugin.getVoteDataHandler().getVoteData().getInt(path + ".weekly", 0));
+                return String.valueOf(plugin.getVoteDataHandler().getPlayerStat(uuid, "weekly"));
             case "bestweeklytotal":
-                return String.valueOf(plugin.getVoteDataHandler().getVoteData().getInt(path + ".best-weekly", 0));
+                return String.valueOf(plugin.getVoteDataHandler().getPlayerStat(uuid, "best-weekly"));
             case "bestmonthlytotal":
-                return String.valueOf(plugin.getVoteDataHandler().getVoteData().getInt(path + ".best-monthly", 0));
+                return String.valueOf(plugin.getVoteDataHandler().getPlayerStat(uuid, "best-monthly"));
             case "monthvotestreak":
-                return String.valueOf(plugin.getVoteDataHandler().getVoteData().getInt(path + ".streak", 0));
+                return String.valueOf(plugin.getVoteDataHandler().getPlayerStat(uuid, "streak"));
             case "bestmonthvotestreak":
-                return String.valueOf(plugin.getVoteDataHandler().getVoteData().getInt(path + ".best-streak", 0));
+                return String.valueOf(plugin.getVoteDataHandler().getPlayerStat(uuid, "best-streak"));
             case "votepartycontributedvotes":
-                return String.valueOf(plugin.getVoteDataHandler().getVoteData().getInt(path + ".voteparty-contribution", 0));
+                return String.valueOf(plugin.getVoteDataHandler().getPlayerStat(uuid, "voteparty-contribution"));
             case "top_all_position":
                 return String.valueOf(getRank(player.getUniqueId(), plugin.getVoteDataHandler().getAllTimeTopVoters()));
             case "top_month_position":

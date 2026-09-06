@@ -10,6 +10,11 @@ debug: false
 # Time to wait after a player joins before giving pending rewards.
 login-delay: 5
 
+# Storage Configuration
+# Options: "SQLITE" (Recommended high-performance database) or "YAML" (legacy flatfile)
+storage:
+  type: "SQLITE"
+
 # Discord Webhook Configuration
 discord:
   enabled: false

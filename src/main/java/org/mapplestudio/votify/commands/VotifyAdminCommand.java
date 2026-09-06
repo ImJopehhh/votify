@@ -10,6 +10,7 @@ import org.bukkit.command.TabCompleter;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.entity.Player;
 import org.mapplestudio.votify.Votify;
+import org.mapplestudio.votify.gui.RewardEditor;
 
 import java.util.*;
 
@@ -63,7 +64,12 @@ public class VotifyAdminCommand implements CommandExecutor, TabCompleter {
                 break;
 
             case "rewardsettings":
-                sender.sendMessage(ChatColor.RED + "This feature is currently disabled.");
+            case "editor":
+                if (!(sender instanceof Player)) {
+                    sender.sendMessage(ChatColor.RED + "This command can only be executed by a player.");
+                    return true;
+                }
+                new RewardEditor(plugin).openInventory((Player) sender);
                 break;
 
             default:
@@ -143,6 +149,7 @@ public class VotifyAdminCommand implements CommandExecutor, TabCompleter {
         sender.sendMessage(ChatColor.translateAlternateColorCodes('&', prefix + "&bVotify Admin Commands:"));
         sender.sendMessage(ChatColor.translateAlternateColorCodes('&', "&e/votifyadmin testvote <player> <servicename> &7- Simulate a vote."));
         sender.sendMessage(ChatColor.translateAlternateColorCodes('&', "&e/votifyadmin topvoter <leaderboard|givereward|rewards> &7- Manage top voters."));
+        sender.sendMessage(ChatColor.translateAlternateColorCodes('&', "&e/votifyadmin editor &7- Open in-game reward editor GUI."));
         sender.sendMessage(ChatColor.translateAlternateColorCodes('&', "&e/votifyadmin reload &7- Reload configuration."));
     }
 
@@ -154,6 +161,8 @@ public class VotifyAdminCommand implements CommandExecutor, TabCompleter {
             List<String> completions = new ArrayList<>();
             completions.add("testvote");
             completions.add("topvoter");
+            completions.add("editor");
+            completions.add("rewardsettings");
             completions.add("reload");
             return completions;
         } else if (args.length == 2) {

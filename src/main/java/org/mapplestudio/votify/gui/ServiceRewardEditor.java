@@ -35,9 +35,10 @@ public class ServiceRewardEditor implements InventoryHolder {
         inv.clear();
         List<String> rewards = plugin.getVoteRewardsConfig().getStringList("rewards." + serviceName);
 
-        for (String reward : rewards) {
+        for (int i = 0; i < Math.min(rewards.size(), 45); i++) {
+            String reward = rewards.get(i);
             String[] parts = reward.split(":", 2);
-            String type = parts[0];
+            String type = parts[0].trim();
             String value = parts.length > 1 ? parts[1].trim() : "";
             Material material;
             switch (type.toLowerCase()) {
@@ -53,10 +54,21 @@ public class ServiceRewardEditor implements InventoryHolder {
                 default:
                     material = Material.BARRIER;
             }
-            inv.addItem(createGuiItem(material, "&e" + type.toUpperCase(), "&b" + value, "", "&cRight-click to delete"));
+            inv.setItem(i, createGuiItem(material, "&e" + type.toUpperCase(),
+                    "&f" + value,
+                    "",
+                    "&7Index: &8#" + (i + 1),
+                    "&cRight-Click to delete"));
+        }
+
+        // Fill row 5 (slots 45-53)
+        ItemStack filler = createGuiItem(Material.GRAY_STAINED_GLASS_PANE, " ");
+        for (int i = 45; i < 54; i++) {
+            inv.setItem(i, filler);
         }
 
         inv.setItem(45, createGuiItem(Material.ARROW, "&cGo Back", "&7Return to the main editor."));
+        inv.setItem(49, createGuiItem(Material.BARRIER, "&c&lDelete Service", "&7Right-click to delete this service entirely."));
         inv.setItem(53, createGuiItem(Material.EMERALD, "&aAdd New Reward", "&7Click to add a new reward."));
     }
 

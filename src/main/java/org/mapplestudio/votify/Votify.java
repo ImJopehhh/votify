@@ -11,6 +11,10 @@ import org.mapplestudio.votify.listeners.JoinListener;
 import org.mapplestudio.votify.listeners.VoteListener;
 import org.mapplestudio.votify.placeholders.VotifyExpansion;
 
+import org.mapplestudio.votify.database.DataMigrator;
+import org.mapplestudio.votify.database.DatabaseManager;
+import org.mapplestudio.votify.util.ChatPromptManager;
+
 import java.io.File;
 import java.io.IOException;
 
@@ -21,6 +25,8 @@ public final class Votify extends JavaPlugin {
     private File voteRewardsFile;
     private VoteDataHandler voteDataHandler;
     private VoteListener voteListener;
+    private DatabaseManager databaseManager;
+    private ChatPromptManager chatPromptManager;
 
     @Override
     public void onEnable() {
@@ -37,6 +43,22 @@ public final class Votify extends JavaPlugin {
         // Configuration
         saveDefaultConfig();
         createVoteRewardsConfig();
+
+        // Chat Prompt Manager
+        this.chatPromptManager = new ChatPromptManager(this);
+
+        // Database / Storage
+        if (getConfig().getString("storage.type", "SQLITE").equalsIgnoreCase("SQLITE")) {
+            try {
+                this.databaseManager = new DatabaseManager(this);
+                this.databaseManager.initialize();
+                getLogger().info("Successfully initialized SQLite database!");
+                DataMigrator.migrateIfNecessary(this, databaseManager);
+            } catch (Exception e) {
+                getLogger().severe("Failed to initialize SQLite database! Falling back to YAML storage: " + e.getMessage());
+                this.databaseManager = null;
+            }
+        }
 
         // Data
         this.voteDataHandler = new VoteDataHandler(this);
@@ -78,6 +100,9 @@ public final class Votify extends JavaPlugin {
         if (voteDataHandler != null) {
             voteDataHandler.saveVoteDataSync();
         }
+        if (databaseManager != null) {
+            databaseManager.close();
+        }
         getLogger().info("Votify has been disabled!");
     }
 
@@ -116,6 +141,14 @@ public final class Votify extends JavaPlugin {
 
     public VoteListener getVoteListener() {
         return voteListener;
+    }
+
+    public DatabaseManager getDatabaseManager() {
+        return databaseManager;
+    }
+
+    public ChatPromptManager getChatPromptManager() {
+        return chatPromptManager;
     }
 
     public static Votify getInstance() {
